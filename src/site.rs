@@ -70,6 +70,15 @@ impl Site {
         false
     }
 
+    /// Check if url has the same host as this site
+    pub fn is_same_host<S: AsRef<str>>(&self, url: S) -> bool {
+        let url = match Url::parse(url.as_ref()) {
+            Ok(u) => u,
+            Err(_) => return false,
+        };
+        self.url.host_str() == url.host_str()
+    }
+
     /// Return the main url
     pub fn get_url(&self) -> &str {
         self.url.as_str()
@@ -151,5 +160,12 @@ mod unit_tests {
         assert!(site.contains_url("http://example.com/sub_url"));
         assert!(site.contains_url("https://example.com/"));
         assert!(!site.contains_url("http://dev.example.com/"));
+    }
+
+    #[test]
+    fn same_host() {
+        let site = Site::new(EXAMPLE).unwrap();
+        assert!(site.is_same_host("http://example.com/sub_url"));
+        assert!(!site.is_same_host("http://google.com"));
     }
 }
