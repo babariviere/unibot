@@ -3,4 +3,7 @@ name = "unibot"
 version = "0.1.0"
 authors = ["notkild <notkild@gmail.com>"]
 
+[lib]
+name = "libunibot"
+
 [dependencies]
