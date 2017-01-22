@@ -22,8 +22,10 @@ pub struct Site {
 impl Site {
     /// Create a new instance of site
     pub fn new<U: IntoUrl>(url: U) -> Result<Site> {
+        let mut url = url.into_url()?;
+        url.set_path("");
         Ok(Site {
-            url: url.into_url()?,
+            url: url,
             subs_url: Vec::new(),
             trap: false,
             fully_crawled: false,
@@ -116,7 +118,6 @@ impl Site {
 #[cfg(test)]
 mod unit_tests {
     use super::Site;
-    use hyper::client::IntoUrl;
 
     const EXAMPLE: &'static str = "http://example.com/";
 
@@ -127,15 +128,20 @@ mod unit_tests {
     #[test]
     fn new_site() {
         let site = Site::new(EXAMPLE).unwrap();
-        assert_eq!(site.get_url(), &EXAMPLE.into_url().unwrap());
+        assert_eq!(site.get_url().as_str(), EXAMPLE);
+    }
+
+    #[test]
+    fn new_site_from_path() {
+        let site = Site::new("http://example.com/index.html").unwrap();
+        assert_eq!(site.get_url().as_str(), EXAMPLE);
     }
 
     #[test]
     fn add_one_sub_url() {
         let mut site = Site::new(EXAMPLE).unwrap();
         site.add_sub_url(&format!("{}/sub", EXAMPLE));
-        assert_eq!(site.get_subs_url()[0],
-                   format!("{}/sub", EXAMPLE).as_str().into_url().unwrap());
+        assert_eq!(site.get_subs_url()[0].as_str(), format!("{}/sub", EXAMPLE));
     }
 
     #[test]
@@ -144,7 +150,7 @@ mod unit_tests {
         let subs_url = vec_multiple_sub_url();
         site.add_subs_url(subs_url.clone());
         for (i, sub_url) in site.get_subs_url().iter().enumerate() {
-            assert_eq!(sub_url, &subs_url[i].into_url().unwrap());
+            assert_eq!(sub_url.as_str(), subs_url[i]);
         }
     }
 
