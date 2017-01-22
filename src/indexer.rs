@@ -1,5 +1,6 @@
 use errors::*;
 use hyper::client::IntoUrl;
+use hyper::Url;
 use site::Site;
 
 #[derive(Debug, Default)]
@@ -38,6 +39,30 @@ impl Indexer {
         &self.sites
     }
 
+    /// Return all url from all sites
+    pub fn get_all_urls(&self) -> Vec<&Url> {
+        let mut vec = Vec::new();
+        for site in &self.sites {
+            vec.push(site.get_url());
+            vec.extend(site.get_subs_url());
+        }
+        vec
+    }
+
+    /// Return all mains url
+    pub fn get_all_main_urls(&self) -> Vec<&Url> {
+        self.sites.iter().map(|s| s.get_url()).collect()
+    }
+
+    /// Return all subs url
+    pub fn get_all_subs_urls(&self) -> Vec<&Url> {
+        let mut vec = Vec::new();
+        for site in &self.sites {
+            vec.extend(site.get_subs_url());
+        }
+        vec
+    }
+
     /// Check if url is indexed
     pub fn is_indexed<U: IntoUrl>(&self, url: U) -> Result<bool> {
         let url = url.into_url()?;
@@ -54,25 +79,69 @@ impl Indexer {
 mod unit_tests {
     use super::Indexer;
 
+    fn add_set_of_url(indexer: &mut Indexer) {
+        for url in &all_urls() {
+            indexer.add_url(*url).unwrap();
+        }
+    }
+
+    fn all_urls() -> Vec<&'static str> {
+        let mut vec = main_urls();
+        vec.extend(subs_urls());
+        vec
+    }
+
+    fn main_urls() -> Vec<&'static str> {
+        vec!["http://example.com/", "http://google.com/"]
+    }
+
+    fn subs_urls() -> Vec<&'static str> {
+        vec!["http://example.com/hello", "http://example.com/hello/world"]
+    }
+
     #[test]
     fn add_url() {
         let mut indexer = Indexer::new();
-        indexer.add_url("http://example.com").unwrap();
-        indexer.add_url("http://example.com/hello").unwrap();
-        indexer.add_url("http://example.com/hello/world").unwrap();
-        indexer.add_url("http://google.com").unwrap();
+        add_set_of_url(&mut indexer);
         assert_eq!(indexer.get_sites().len(), 2);
     }
 
     #[test]
     fn is_indexed() {
         let mut indexer = Indexer::new();
-        indexer.add_url("http://example.com").unwrap();
-        indexer.add_url("http://example.com/hello").unwrap();
-        indexer.add_url("http://example.com/hello/world").unwrap();
-        indexer.add_url("http://google.com").unwrap();
+        add_set_of_url(&mut indexer);
         assert!(indexer.is_indexed("http://google.com").unwrap());
         assert!(indexer.is_indexed("http://example.com").unwrap());
         assert!(!indexer.is_indexed("http://bing.com").unwrap());
+    }
+
+    #[test]
+    fn get_all_urls() {
+        let mut indexer = Indexer::new();
+        add_set_of_url(&mut indexer);
+        let urls = all_urls();
+        for (i, url) in indexer.get_all_urls().iter().enumerate() {
+            assert_eq!(url.as_str(), urls[i]);
+        }
+    }
+
+    #[test]
+    fn get_all_main_urls() {
+        let mut indexer = Indexer::new();
+        add_set_of_url(&mut indexer);
+        let urls = main_urls();
+        for (i, url) in indexer.get_all_main_urls().iter().enumerate() {
+            assert_eq!(url.as_str(), urls[i]);
+        }
+    }
+
+    #[test]
+    fn get_all_subs_urls() {
+        let mut indexer = Indexer::new();
+        add_set_of_url(&mut indexer);
+        let urls = subs_urls();
+        for (i, url) in indexer.get_all_subs_urls().iter().enumerate() {
+            assert_eq!(url.as_str(), urls[i]);
+        }
     }
 }
