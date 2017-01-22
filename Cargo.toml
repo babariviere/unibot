@@ -9,3 +9,4 @@ name = "libunibot"
 [dependencies]
 error-chain = "0.8"
 hyper = "0.10"
+hyper-native-tls = "0.2"

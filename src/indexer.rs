@@ -3,6 +3,7 @@ use hyper::client::IntoUrl;
 use hyper::Url;
 use site::Site;
 
+/// Handle all crawled url
 #[derive(Debug, Default)]
 pub struct Indexer {
     sites: Vec<Site>,
