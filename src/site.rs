@@ -58,11 +58,12 @@ impl Site {
             Ok(u) => u,
             Err(_) => return false,
         };
-        if url == self.url {
+        let host_str = url.host_str();
+        if host_str == self.url.host_str() {
             return true;
         }
         for sub_url in &self.subs_url {
-            if sub_url == &url {
+            if sub_url.host_str() == host_str {
                 return true;
             }
         }
@@ -140,5 +141,15 @@ mod unit_tests {
         let mut site = Site::new(EXAMPLE).unwrap();
         site.add_sub_url("http://google.com/sub_url");
         assert!(site.get_subs_url().len() == 0);
+    }
+
+    #[test]
+    fn contains_url() {
+        let mut site = Site::new(EXAMPLE).unwrap();
+        site.add_sub_url("http://example.com/sub_url");
+        assert!(site.contains_url(&EXAMPLE));
+        assert!(site.contains_url("http://example.com/sub_url"));
+        assert!(site.contains_url("https://example.com/"));
+        assert!(!site.contains_url("http://dev.example.com/"));
     }
 }
