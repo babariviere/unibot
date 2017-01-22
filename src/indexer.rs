@@ -13,8 +13,6 @@ impl Indexer {
         Indexer { sites: Vec::new() }
     }
 
-    // TODO - index site - is indexed - get all main urls - get url - get sub url
-
     /// Add a url to indexer
     ///
     /// If url is not indexed, then it will create a new site with this url
