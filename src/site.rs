@@ -1,3 +1,5 @@
+use errors::*;
+use url::Url;
 
 /// A structure to define a site.
 ///
@@ -10,8 +12,8 @@
 /// `fully_crawled` - If site is fully crawled
 #[derive(Debug)]
 pub struct Site {
-    url: String,
-    subs_url: Vec<String>,
+    url: Url,
+    subs_url: Vec<Url>,
     trap: bool,
     fully_crawled: bool,
 }
@@ -20,25 +22,30 @@ pub struct Site {
 
 impl Site {
     /// Create a new instance of site
-    pub fn new<S: AsRef<str>>(url: S) -> Site {
-        Site {
-            url: url.as_ref().to_owned(),
+    pub fn new<S: AsRef<str>>(url: S) -> Result<Site> {
+        let url = Url::parse(url.as_ref())?;
+        Ok(Site {
+            url: url,
             subs_url: Vec::new(),
             trap: false,
             fully_crawled: false,
-        }
+        })
     }
 
     /// Add an url that site provide
     pub fn add_sub_url<S: AsRef<str>>(&mut self, sub_url: S) {
-        let sub_url = sub_url.as_ref().to_owned();
-        if sub_url.starts_with(&self.url) {
+        let sub_url = sub_url.as_ref();
+        let sub_url = match Url::parse(sub_url) {
+            Ok(u) => u,
+            Err(_) => return,
+        };
+        if self.url.host_str() == sub_url.host_str() {
             self.subs_url.push(sub_url);
         }
     }
 
     /// Add a set of url that site provide
-    pub fn add_subs_url<S: AsRef<str>>(&mut self, subs_url: &Vec<S>) {
+    pub fn add_subs_url<S: AsRef<str>>(&mut self, subs_url: &[S]) {
         for sub_url in subs_url {
             self.add_sub_url(sub_url);
         }
@@ -47,11 +54,15 @@ impl Site {
     /// Check if site contains url and is crawled
     pub fn contains_url<S: AsRef<str>>(&self, url: S) -> bool {
         let url = url.as_ref();
+        let url = match Url::parse(url) {
+            Ok(u) => u,
+            Err(_) => return false,
+        };
         if url == self.url {
             return true;
         }
         for sub_url in &self.subs_url {
-            if sub_url == url {
+            if sub_url == &url {
                 return true;
             }
         }
@@ -60,12 +71,12 @@ impl Site {
 
     /// Return the main url
     pub fn get_url(&self) -> &str {
-        &self.url
+        self.url.as_str()
     }
 
     /// Return all subs url
-    pub fn get_subs_url(&self) -> &Vec<String> {
-        &self.subs_url
+    pub fn get_subs_url(&self) -> Vec<&str> {
+        self.subs_url.iter().map(|u| u.as_str()).collect()
     }
 
     /// Check if site contains trap
@@ -95,7 +106,7 @@ impl Site {
 mod unit_tests {
     use super::Site;
 
-    const EXAMPLE: &'static str = "http://example.com";
+    const EXAMPLE: &'static str = "http://example.com/";
 
     fn vec_multiple_sub_url() -> Vec<&'static str> {
         vec!["http://example.com/hello", "http://example.com/yo", "http://example.com/world"]
@@ -103,30 +114,30 @@ mod unit_tests {
 
     #[test]
     fn new_site() {
-        let site = Site::new(EXAMPLE);
+        let site = Site::new(EXAMPLE).unwrap();
         assert_eq!(site.get_url(), EXAMPLE);
     }
 
     #[test]
     fn add_one_sub_url() {
-        let mut site = Site::new(EXAMPLE);
+        let mut site = Site::new(EXAMPLE).unwrap();
         site.add_sub_url(&format!("{}/sub", EXAMPLE));
         assert_eq!(site.get_subs_url()[0], format!("{}/sub", EXAMPLE));
     }
 
     #[test]
     fn add_multiple_sub_url() {
-        let mut site = Site::new(EXAMPLE);
+        let mut site = Site::new(EXAMPLE).unwrap();
         site.add_subs_url(&vec_multiple_sub_url());
         let subs_url = vec_multiple_sub_url();
         for (i, sub_url) in site.get_subs_url().iter().enumerate() {
-            assert_eq!(sub_url, subs_url[i]);
+            assert_eq!(sub_url, &subs_url[i]);
         }
     }
 
     #[test]
     fn add_wrong_sub_url() {
-        let mut site = Site::new(EXAMPLE);
+        let mut site = Site::new(EXAMPLE).unwrap();
         site.add_sub_url("http://google.com/sub_url");
         assert!(site.get_subs_url().len() == 0);
     }

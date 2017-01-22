@@ -7,3 +7,5 @@ authors = ["notkild <notkild@gmail.com>"]
 name = "libunibot"
 
 [dependencies]
+error-chain = "0.8"
+url = "1.3"
