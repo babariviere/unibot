@@ -23,10 +23,16 @@ impl Site {
     /// Create a new instance of site
     pub fn new<U: IntoUrl>(url: U) -> Result<Site> {
         let mut url = url.into_url()?;
+        let sub_url = url.clone();
         url.set_path("");
+
+        let mut subs_url = Vec::new();
+        if sub_url != url {
+            subs_url.push(sub_url);
+        }
         Ok(Site {
             url: url,
-            subs_url: Vec::new(),
+            subs_url: subs_url,
             trap: false,
             fully_crawled: false,
         })
@@ -129,6 +135,7 @@ mod unit_tests {
     fn new_site() {
         let site = Site::new(EXAMPLE).unwrap();
         assert_eq!(site.get_url().as_str(), EXAMPLE);
+        assert_eq!(site.get_subs_url().len(), 0);
     }
 
     #[test]
@@ -138,10 +145,17 @@ mod unit_tests {
     }
 
     #[test]
+    fn new_site_with_path() {
+        let site = Site::new("http://example.com/index.html").unwrap();
+        assert_eq!(site.get_url().as_str(), EXAMPLE);
+        assert_eq!(site.get_subs_url_str()[0], "http://example.com/index.html");
+    }
+
+    #[test]
     fn add_one_sub_url() {
         let mut site = Site::new(EXAMPLE).unwrap();
-        site.add_sub_url(&format!("{}/sub", EXAMPLE));
-        assert_eq!(site.get_subs_url()[0].as_str(), format!("{}/sub", EXAMPLE));
+        site.add_sub_url(&format!("{}sub", EXAMPLE));
+        assert_eq!(site.get_subs_url_str()[0], format!("{}sub", EXAMPLE));
     }
 
     #[test]
