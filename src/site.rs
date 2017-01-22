@@ -1,5 +1,6 @@
 use errors::*;
-use url::Url;
+use hyper::Url;
+use hyper::client::IntoUrl;
 
 /// A structure to define a site.
 ///
@@ -18,14 +19,11 @@ pub struct Site {
     fully_crawled: bool,
 }
 
-// TODO replace string url with a url struct
-
 impl Site {
     /// Create a new instance of site
-    pub fn new<S: AsRef<str>>(url: S) -> Result<Site> {
-        let url = Url::parse(url.as_ref())?;
+    pub fn new<U: IntoUrl>(url: U) -> Result<Site> {
         Ok(Site {
-            url: url,
+            url: url.into_url()?,
             subs_url: Vec::new(),
             trap: false,
             fully_crawled: false,
@@ -33,9 +31,8 @@ impl Site {
     }
 
     /// Add an url that site provide
-    pub fn add_sub_url<S: AsRef<str>>(&mut self, sub_url: S) {
-        let sub_url = sub_url.as_ref();
-        let sub_url = match Url::parse(sub_url) {
+    pub fn add_sub_url<U: IntoUrl>(&mut self, sub_url: U) {
+        let sub_url = match sub_url.into_url() {
             Ok(u) => u,
             Err(_) => return,
         };
@@ -45,16 +42,15 @@ impl Site {
     }
 
     /// Add a set of url that site provide
-    pub fn add_subs_url<S: AsRef<str>>(&mut self, subs_url: &[S]) {
+    pub fn add_subs_url<U: IntoUrl>(&mut self, subs_url: Vec<U>) {
         for sub_url in subs_url {
             self.add_sub_url(sub_url);
         }
     }
 
     /// Check if site contains url and is crawled
-    pub fn contains_url<S: AsRef<str>>(&self, url: S) -> bool {
-        let url = url.as_ref();
-        let url = match Url::parse(url) {
+    pub fn contains_url<U: IntoUrl>(&self, url: U) -> bool {
+        let url = match url.into_url() {
             Ok(u) => u,
             Err(_) => return false,
         };
@@ -71,8 +67,8 @@ impl Site {
     }
 
     /// Check if url has the same host as this site
-    pub fn is_same_host<S: AsRef<str>>(&self, url: S) -> bool {
-        let url = match Url::parse(url.as_ref()) {
+    pub fn is_same_host<U: IntoUrl>(&self, url: U) -> bool {
+        let url = match url.into_url() {
             Ok(u) => u,
             Err(_) => return false,
         };
@@ -80,12 +76,17 @@ impl Site {
     }
 
     /// Return the main url
-    pub fn get_url(&self) -> &str {
-        self.url.as_str()
+    pub fn get_url(&self) -> &Url {
+        &self.url
     }
 
     /// Return all subs url
-    pub fn get_subs_url(&self) -> Vec<&str> {
+    pub fn get_subs_url(&self) -> &Vec<Url> {
+        &self.subs_url
+    }
+
+    /// Return all subs url (str)
+    pub fn get_subs_url_str(&self) -> Vec<&str> {
         self.subs_url.iter().map(|u| u.as_str()).collect()
     }
 
@@ -115,6 +116,7 @@ impl Site {
 #[cfg(test)]
 mod unit_tests {
     use super::Site;
+    use hyper::client::IntoUrl;
 
     const EXAMPLE: &'static str = "http://example.com/";
 
@@ -125,23 +127,24 @@ mod unit_tests {
     #[test]
     fn new_site() {
         let site = Site::new(EXAMPLE).unwrap();
-        assert_eq!(site.get_url(), EXAMPLE);
+        assert_eq!(site.get_url(), &EXAMPLE.into_url().unwrap());
     }
 
     #[test]
     fn add_one_sub_url() {
         let mut site = Site::new(EXAMPLE).unwrap();
         site.add_sub_url(&format!("{}/sub", EXAMPLE));
-        assert_eq!(site.get_subs_url()[0], format!("{}/sub", EXAMPLE));
+        assert_eq!(site.get_subs_url()[0],
+                   format!("{}/sub", EXAMPLE).as_str().into_url().unwrap());
     }
 
     #[test]
     fn add_multiple_sub_url() {
         let mut site = Site::new(EXAMPLE).unwrap();
-        site.add_subs_url(&vec_multiple_sub_url());
         let subs_url = vec_multiple_sub_url();
+        site.add_subs_url(subs_url.clone());
         for (i, sub_url) in site.get_subs_url().iter().enumerate() {
-            assert_eq!(sub_url, &subs_url[i]);
+            assert_eq!(sub_url, &subs_url[i].into_url().unwrap());
         }
     }
 
@@ -156,7 +159,7 @@ mod unit_tests {
     fn contains_url() {
         let mut site = Site::new(EXAMPLE).unwrap();
         site.add_sub_url("http://example.com/sub_url");
-        assert!(site.contains_url(&EXAMPLE));
+        assert!(site.contains_url(EXAMPLE));
         assert!(site.contains_url("http://example.com/sub_url"));
         assert!(site.contains_url("https://example.com/"));
         assert!(!site.contains_url("http://dev.example.com/"));

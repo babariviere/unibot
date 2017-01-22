@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate error_chain;
-extern crate url;
+extern crate hyper;
 
 pub mod crawl;
 pub mod errors;
