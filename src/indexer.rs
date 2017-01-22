@@ -37,6 +37,17 @@ impl Indexer {
     pub fn get_sites(&self) -> &Vec<Site> {
         &self.sites
     }
+
+    /// Check if url is indexed
+    pub fn is_indexed<U: IntoUrl>(&self, url: U) -> Result<bool> {
+        let url = url.into_url()?;
+        for site in &self.sites {
+            if site.contains_url(url.clone()) {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
 }
 
 #[cfg(test)]
@@ -51,5 +62,17 @@ mod unit_tests {
         indexer.add_url("http://example.com/hello/world").unwrap();
         indexer.add_url("http://google.com").unwrap();
         assert_eq!(indexer.get_sites().len(), 2);
+    }
+
+    #[test]
+    fn is_indexed() {
+        let mut indexer = Indexer::new();
+        indexer.add_url("http://example.com").unwrap();
+        indexer.add_url("http://example.com/hello").unwrap();
+        indexer.add_url("http://example.com/hello/world").unwrap();
+        indexer.add_url("http://google.com").unwrap();
+        assert!(indexer.is_indexed("http://google.com").unwrap());
+        assert!(indexer.is_indexed("http://example.com").unwrap());
+        assert!(!indexer.is_indexed("http://bing.com").unwrap());
     }
 }
