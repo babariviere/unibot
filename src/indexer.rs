@@ -21,7 +21,7 @@ impl Indexer {
         let url = url.into_url()?;
         for site in &mut self.sites {
             if site.contains_url(url.clone()) {
-                return Ok(());
+                bail!(ErrorKind::UrlAlreadyIndexed);
             }
             if site.is_same_host(url.clone()) {
                 site.add_sub_url(url);
@@ -118,7 +118,8 @@ mod unit_tests {
     fn get_all_urls() {
         let mut indexer = Indexer::new();
         add_set_of_url(&mut indexer);
-        let urls = all_urls();
+        let mut urls = all_urls();
+        urls.sort();
         for (i, url) in indexer.get_all_urls().iter().enumerate() {
             assert_eq!(url.as_str(), urls[i]);
         }

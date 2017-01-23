@@ -62,12 +62,15 @@ impl Site {
             Ok(u) => u,
             Err(_) => return false,
         };
-        let host_str = url.host_str();
-        if host_str == self.url.host_str() {
+        if url.host_str() != self.url.host_str() {
+            return false;
+        }
+        let url_path = url.path();
+        if url_path == self.url.path() {
             return true;
         }
         for sub_url in &self.subs_url {
-            if sub_url.host_str() == host_str {
+            if sub_url.path() == url_path {
                 return true;
             }
         }
@@ -183,6 +186,7 @@ mod unit_tests {
         assert!(site.contains_url("http://example.com/sub_url"));
         assert!(site.contains_url("https://example.com/"));
         assert!(!site.contains_url("http://dev.example.com/"));
+        assert!(!site.contains_url("http://example.com/sub_url/sub"));
     }
 
     #[test]
