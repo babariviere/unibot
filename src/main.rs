@@ -3,7 +3,6 @@ extern crate libunibot;
 use libunibot::crawl::Crawler;
 
 fn main() {
-    println!("Welcome to my crawler!");
     let mut args = ::std::env::args();
     args.next();
     let mut crawler = Crawler::new();

@@ -13,6 +13,7 @@ use std::io::Read;
 pub struct Crawler {
     client: Client,
     indexer: Indexer,
+    count: usize,
 }
 
 impl Crawler {
@@ -22,6 +23,7 @@ impl Crawler {
         Crawler {
             client: Client::with_connector(connector),
             indexer: Indexer::new(),
+            count: 0,
         }
     }
 
@@ -30,8 +32,12 @@ impl Crawler {
         let mut reponse = self.client.get(url).send()?;
         let url = reponse.url.clone();
         self.indexer.add_url(url.clone())?;
+        let mut buf = Vec::new();
         let mut body = String::new();
-        reponse.read_to_string(&mut body)?;
+        match reponse.read_to_end(&mut buf) {
+            Ok(_) => body = String::from_utf8_lossy(&*buf).into_owned(),
+            Err(e) => bail!(e),
+        }
         Ok((url, body))
     }
 
@@ -46,11 +52,18 @@ impl Crawler {
     pub fn crawl_recursive<U: IntoUrl>(&mut self, url: U) -> Result<Vec<(Url, Document)>> {
         let mut crawled = Vec::new();
         let url = url.into_url()?;
+        // TODO return ok when:
+        // Err is UrlAlreadyIndexed
+        // Err is invalid utf 8
+        // else return err
         let (url, doc) = match self.crawl_doc(url) {
             Ok(u) => u,
-            _ => return Ok(crawled),
+            Err(e) => {
+                return Ok(crawled);
+            }
         };
-        println!("==> Crawling {}", url);
+        self.count += 1;
+        println!("[{}] Crawling {}", self.count, url);
         let hrefs = doc.find(Attr("href", ()));
         for node in hrefs.iter() {
             let href = node.attr("href").unwrap();
