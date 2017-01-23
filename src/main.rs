@@ -8,14 +8,13 @@ fn main() {
     args.next();
     let mut crawler = Crawler::new();
     for arg in args {
-        let (url, body) = match crawler.crawl(&arg) {
-            Ok((url, body)) => (url, body),
+        let v = match crawler.crawl_recursive(&arg) {
+            Ok(v) => v,
             Err(e) => {
                 println!("Error: {}", e);
                 continue;
             }
         };
-        println!("{}", url);
     }
     println!("{:?}", crawler);
 }
