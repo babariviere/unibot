@@ -1,3 +1,4 @@
+use common::beautify_url;
 use errors::*;
 use hyper::client::{Client, IntoUrl};
 use hyper::net::HttpsConnector;
@@ -15,6 +16,7 @@ pub struct Crawler {
     indexer: Indexer,
     count: usize,
 }
+// TODO create a queue to follow the progress and share between threads
 
 impl Crawler {
     pub fn new() -> Crawler {
@@ -33,11 +35,10 @@ impl Crawler {
         let url = reponse.url.clone();
         self.indexer.add_url(url.clone())?;
         let mut buf = Vec::new();
-        let mut body = String::new();
-        match reponse.read_to_end(&mut buf) {
-            Ok(_) => body = String::from_utf8_lossy(&*buf).into_owned(),
+        let body = match reponse.read_to_end(&mut buf) {
+            Ok(_) => String::from_utf8_lossy(&*buf).into_owned(),
             Err(e) => bail!(e),
-        }
+        };
         Ok((url, body))
     }
 
@@ -64,12 +65,26 @@ impl Crawler {
         };
         self.count += 1;
         println!("[{}] Crawling {}", self.count, url);
+        let srcs = doc.find(Attr("src", ()));
+        for node in srcs.iter() {
+            let src = node.attr("src").unwrap();
+            if src.starts_with("http") {
+                println!("SRC {}", src);
+            } else {
+                println!("SRC {}{}", url, src);
+            }
+        }
         let hrefs = doc.find(Attr("href", ()));
         for node in hrefs.iter() {
             let href = node.attr("href").unwrap();
-            if href.starts_with('/') {
+            // TODO handle /www.
+            if href.starts_with("/www") {
+                let result = self.crawl_recursive(href)?;
+                crawled.extend(result);
+            } else if href.starts_with('/') {
                 let mut url = url.clone();
-                url.set_path(href);
+                let href = beautify_url(&format!("{}/{}", url.path(), href));
+                url.set_path(&href);
                 let result = self.crawl_recursive(url)?;
                 crawled.extend(result);
             } else if href.starts_with("http") {

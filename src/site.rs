@@ -18,6 +18,7 @@ pub struct Site {
     trap: bool,
     fully_crawled: bool,
 }
+// Use hash map for speed
 
 impl Site {
     /// Create a new instance of site

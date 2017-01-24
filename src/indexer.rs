@@ -24,6 +24,10 @@ impl Indexer {
                 bail!(ErrorKind::UrlAlreadyIndexed);
             }
             if site.is_same_host(url.clone()) {
+                if url.as_str().len() > 200 {
+                    site.set_trap_state(true);
+                    bail!(ErrorKind::SpiderTrap);
+                }
                 site.add_sub_url(url);
                 return Ok(());
             }

@@ -8,8 +8,12 @@ error_chain!{
 
     errors {
         UrlAlreadyIndexed {
-            description("Url is already indexed")
-            display("Could not add url because it is already indexed")
+            description("Could not add url because it is already indexed")
+            display("Url is already indexed")
+        }
+        SpiderTrap {
+            description("Site contains spider trap, this is error help to avoid loop")
+            display("Site contains spider trap")
         }
     }
 }
