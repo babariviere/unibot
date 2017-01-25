@@ -67,10 +67,9 @@ impl Indexer {
     }
 
     /// Check if url is indexed
-    pub fn is_indexed<U: IntoUrl>(&self, url: U) -> Result<bool> {
-        let url = url.into_url()?;
+    pub fn is_indexed(&self, url: &Url) -> Result<bool> {
         for site in &self.sites {
-            if site.contains_url(&url) {
+            if site.contains_url(url) {
                 return Ok(true);
             }
         }
@@ -80,6 +79,7 @@ impl Indexer {
 
 #[cfg(test)]
 mod unit_tests {
+    use hyper::client::IntoUrl;
     use super::Indexer;
 
     fn add_set_of_url(indexer: &mut Indexer) {
@@ -113,9 +113,9 @@ mod unit_tests {
     fn is_indexed() {
         let mut indexer = Indexer::new();
         add_set_of_url(&mut indexer);
-        assert!(indexer.is_indexed("http://google.com").unwrap());
-        assert!(indexer.is_indexed("http://example.com").unwrap());
-        assert!(!indexer.is_indexed("http://bing.com").unwrap());
+        assert!(indexer.is_indexed(&"http://google.com".into_url().unwrap()).unwrap());
+        assert!(indexer.is_indexed(&"http://example.com".into_url().unwrap()).unwrap());
+        assert!(!indexer.is_indexed(&"http://bing.com".into_url().unwrap()).unwrap());
     }
 
     #[test]
