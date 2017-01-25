@@ -92,13 +92,22 @@ impl Crawler {
     /// Crawl site recursively until queue is empty
     pub fn crawl_recursive(&mut self) -> Result<Vec<(Url, Document)>> {
         let mut crawled = Vec::new();
+        // Only for debug
+        if self.count > 50 {
+            return Ok(crawled);
+        }
         let (url, doc) = match self.crawl_doc() {
             Ok(u) => u,
             Err(e) => {
                 error!("{}", e);
-                return Ok(crawled);
+                match e {
+                    Error(ErrorKind::UrlAlreadyIndexed, _) |
+                    Error(ErrorKind::SpiderTrap, _) => return Ok(crawled),
+                    _ => return Err(e),
+                }
             }
         };
+        crawled.push((url.clone(), doc.clone()));
         self.count += 1;
         info!("[{}] Crawling {}", self.count, url);
         let srcs = doc.find(Attr("src", ()));
@@ -111,16 +120,32 @@ impl Crawler {
             }
         }
         let hrefs = doc.find(Attr("href", ()));
+        // TODO better handling of href
         for node in hrefs.iter() {
             let href = node.attr("href").unwrap();
-            if href.starts_with("/www") || href.starts_with("http") {
-                self.add_to_queue(href)?;
+            let url = url.clone();
+            let url = if href.starts_with("//") {
+                let scheme = url.scheme();
+                match format!("{}{}", scheme, href).into_url() {
+                    Ok(u) => u,
+                    _ => continue,
+                }
+            } else if href.starts_with("http") {
+                match href.into_url() {
+                    Ok(u) => u,
+                    _ => continue,
+                }
             } else if href.starts_with('/') {
                 let mut url = url.clone();
-                let href = beautify_url(&format!("{}/{}", url.path(), href));
+                url.set_path(href);
+                url
+            } else {
+                let mut url = url.clone();
+                let href = beautify_url(format!("{}/{}", url, href));
                 url.set_path(&href);
-                self.add_to_queue(url)?;
-            }
+                url
+            };
+            self.add_to_queue(url)?;
             let result = self.crawl_recursive()?;
             crawled.extend(result);
         }

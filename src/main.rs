@@ -10,19 +10,21 @@ use term::color::*;
 fn main() {
     let mut args = ::std::env::args();
     args.next();
-    init_with_level(LogLevel::Debug);
+    init_with_level(LogLevel::Debug).unwrap();
     let mut crawler = Crawler::new();
     for arg in args {
         crawler.add_to_queue(&arg).unwrap();
     }
-    let _v = match crawler.crawl_recursive() {
+    let v = match crawler.crawl_recursive() {
         Ok(v) => v,
         Err(e) => {
             println!("Error: {}", e);
             return;
         }
     };
-    println!("{:?}", crawler);
+    for (url, _body) in v {
+        println!("- {}", url);
+    }
 }
 
 pub fn init_with_level(log_level: LogLevel) -> Result<(), SetLoggerError> {

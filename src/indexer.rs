@@ -24,11 +24,15 @@ impl Indexer {
                 bail!(ErrorKind::UrlAlreadyIndexed);
             }
             if site.is_same_host(&url) {
+                if site.is_trap() {
+                    bail!(ErrorKind::SpiderTrap);
+                }
+                // TODO
                 if url.as_str().len() > 200 {
                     site.set_trap_state(true);
                     bail!(ErrorKind::SpiderTrap);
                 }
-                debug!("ADDING {} TO INDEX", url);
+                debug!("ADDING TO INDEX {}", url);
                 site.add_sub_url(url);
                 return Ok(());
             }
