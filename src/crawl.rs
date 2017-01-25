@@ -107,6 +107,7 @@ impl Crawler {
                 }
             }
         };
+        // TODO just return url not doc, too heavy on memory
         crawled.push((url.clone(), doc.clone()));
         self.count += 1;
         info!("[{}] Crawling {}", self.count, url);
@@ -123,10 +124,13 @@ impl Crawler {
         // TODO better handling of href
         for node in hrefs.iter() {
             let href = node.attr("href").unwrap();
+            if href.starts_with('#') {
+                continue;
+            }
             let url = url.clone();
             let url = if href.starts_with("//") {
                 let scheme = url.scheme();
-                match format!("{}{}", scheme, href).into_url() {
+                match format!("{}:{}", scheme, href).into_url() {
                     Ok(u) => u,
                     _ => continue,
                 }
