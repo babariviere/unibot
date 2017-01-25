@@ -6,6 +6,6 @@ extern crate select;
 
 mod common;
 pub mod crawl;
-pub mod errors;
+pub mod error;
 pub mod indexer;
 pub mod site;

@@ -1,4 +1,4 @@
-use errors::*;
+use error::*;
 use hyper::client::IntoUrl;
 use hyper::Url;
 use site::Site;

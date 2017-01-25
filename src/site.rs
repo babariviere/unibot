@@ -1,4 +1,4 @@
-use errors::*;
+use error::*;
 use hyper::Url;
 use hyper::client::IntoUrl;
 

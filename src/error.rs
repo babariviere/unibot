@@ -15,5 +15,13 @@ error_chain!{
             description("Site contains spider trap, this is error help to avoid loop")
             display("Site contains spider trap")
         }
+        PoisonError(e: String) {
+            description(e)
+            display("{}", e)
+        }
+        QueueEmpty {
+            description("Queue has no item in it")
+            display("Queue has no item in it")
+        }
     }
 }
