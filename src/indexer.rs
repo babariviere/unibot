@@ -28,11 +28,13 @@ impl Indexer {
                     site.set_trap_state(true);
                     bail!(ErrorKind::SpiderTrap);
                 }
+                debug!("ADDING {} TO INDEX", url);
                 site.add_sub_url(url);
                 return Ok(());
             }
         }
 
+        debug!("ADDING SITE {}", url);
         self.sites.push(Site::new(url)?);
         Ok(())
     }

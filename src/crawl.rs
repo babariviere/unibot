@@ -38,7 +38,7 @@ impl Crawler {
             Ok(q) => q,
             Err(e) => bail!(ErrorKind::PoisonError(e.to_string())),
         };
-        // println!("QUEUE PUSH {}", url);
+        debug!("QUEUE PUSH {}", url);
         queue.push(url);
         Ok(())
     }
@@ -61,7 +61,7 @@ impl Crawler {
         let url = queue.pop();
         match url {
             Some(u) => {
-                // println!("QUEUE POP {}", u);
+                debug!("QUEUE POP {}", u);
                 Ok(u)
             }
             None => bail!(ErrorKind::QueueEmpty),
@@ -71,6 +71,7 @@ impl Crawler {
     /// Crawl site from queue, index it and return url and the body.
     pub fn crawl(&mut self) -> Result<(Url, String)> {
         let url = self.pop_queue()?;
+        debug!("CRAWLING SITE {}", url);
         let mut reponse = self.client.get(url.clone()).send()?;
         self.indexer.add_url(url.clone())?;
         let mut buf = Vec::new();
@@ -91,25 +92,20 @@ impl Crawler {
     /// Crawl site recursively
     pub fn crawl_recursive(&mut self) -> Result<Vec<(Url, Document)>> {
         let mut crawled = Vec::new();
-        // TODO return ok when:
-        // Err is UrlAlreadyIndexed
-        // Err is invalid utf 8
-        // else return err
         let (url, doc) = match self.crawl_doc() {
             Ok(u) => u,
-            Err(e) => {
-                return Ok(crawled);
-            }
+            Err(Error(ErrorKind::UrlAlreadyIndexed, _)) => return Ok(crawled),
+            Err(e) => return Err(e),
         };
         self.count += 1;
-        println!("[{}] Crawling {}", self.count, url);
+        info!("[{}] Crawling {}", self.count, url);
         let srcs = doc.find(Attr("src", ()));
         for node in srcs.iter() {
             let src = node.attr("src").unwrap();
             if src.starts_with("http") {
-                println!("SRC {}", src);
+                debug!("SRC {}", src);
             } else {
-                println!("SRC {}{}", url, src);
+                debug!("SRC {}{}", url, src);
             }
         }
         let hrefs = doc.find(Attr("href", ()));
