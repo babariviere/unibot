@@ -89,13 +89,15 @@ impl Crawler {
         Ok((url, doc))
     }
 
-    /// Crawl site recursively
+    /// Crawl site recursively until queue is empty
     pub fn crawl_recursive(&mut self) -> Result<Vec<(Url, Document)>> {
         let mut crawled = Vec::new();
         let (url, doc) = match self.crawl_doc() {
             Ok(u) => u,
-            Err(Error(ErrorKind::UrlAlreadyIndexed, _)) => return Ok(crawled),
-            Err(e) => return Err(e),
+            Err(e) => {
+                error!("{}", e);
+                return Ok(crawled);
+            }
         };
         self.count += 1;
         info!("[{}] Crawling {}", self.count, url);

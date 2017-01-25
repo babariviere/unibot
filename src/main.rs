@@ -1,19 +1,16 @@
 extern crate libunibot;
 extern crate log;
-extern crate log4rs;
+extern crate term;
 
 use libunibot::crawl::Crawler;
-use log::LogLevelFilter;
-use log::LogRecord;
-use log4rs::append::console::ConsoleAppender;
-use log4rs::config::{Appender, Config, Root};
-use log4rs::encode::pattern::PatternEncoder;
-use log4rs::filter::{Filter, Response};
+use log::{Log, LogRecord, LogLevel, LogMetadata, SetLoggerError};
+use term::stdout;
+use term::color::*;
 
 fn main() {
     let mut args = ::std::env::args();
     args.next();
-    init_logger();
+    init_with_level(LogLevel::Debug);
     let mut crawler = Crawler::new();
     for arg in args {
         crawler.add_to_queue(&arg).unwrap();
@@ -28,30 +25,43 @@ fn main() {
     println!("{:?}", crawler);
 }
 
-fn init_logger() {
-    let stdout = ConsoleAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{h({l})} {m}\n")))
-        .build();
-
-    let config = Config::builder()
-        .appender(Appender::builder()
-            .filter(Box::new(CustomFilter))
-            .build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(LogLevelFilter::Debug))
-        .unwrap();
-
-    let _handle = log4rs::init_config(config).unwrap();
+pub fn init_with_level(log_level: LogLevel) -> Result<(), SetLoggerError> {
+    log::set_logger(|max_log_level| {
+        max_log_level.set(log_level.to_log_level_filter());
+        Box::new(Logger { level: log_level })
+    })
 }
 
-#[derive(Debug)]
-struct CustomFilter;
 
-impl Filter for CustomFilter {
-    fn filter(&self, record: &LogRecord) -> Response {
-        if record.target().contains("libunibot") {
-            Response::Accept
-        } else {
-            Response::Reject
+pub struct Logger {
+    level: LogLevel,
+}
+
+impl Log for Logger {
+    fn enabled(&self, metadata: &LogMetadata) -> bool {
+        metadata.level() <= self.level && metadata.target().contains("libunibot")
+    }
+
+    fn log(&self, record: &LogRecord) {
+        if self.enabled(record.metadata()) {
+            self.log_result(record);
         }
+    }
+}
+
+impl Logger {
+    fn log_result(&self, record: &LogRecord) {
+        let mut t = stdout().unwrap();
+        t.fg(BRIGHT_BLUE).unwrap();
+        match record.level() {
+            LogLevel::Error => t.fg(BRIGHT_RED).unwrap(),
+            LogLevel::Warn => t.fg(BRIGHT_YELLOW).unwrap(),
+            LogLevel::Info => t.fg(BRIGHT_GREEN).unwrap(),
+            LogLevel::Debug => t.fg(BRIGHT_CYAN).unwrap(),
+            LogLevel::Trace => t.fg(BRIGHT_WHITE).unwrap(),
+        };
+        write!(t, "[{:<5}] ", record.level()).unwrap();
+        t.reset().unwrap();
+        writeln!(t, "{}", record.args()).unwrap();
     }
 }
