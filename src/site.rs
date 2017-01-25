@@ -58,11 +58,7 @@ impl Site {
     }
 
     /// Check if site contains url and is crawled
-    pub fn contains_url<U: IntoUrl>(&self, url: U) -> bool {
-        let url = match url.into_url() {
-            Ok(u) => u,
-            Err(_) => return false,
-        };
+    pub fn contains_url(&self, url: &Url) -> bool {
         if url.host_str() != self.url.host_str() {
             return false;
         }
@@ -79,11 +75,7 @@ impl Site {
     }
 
     /// Check if url has the same host as this site
-    pub fn is_same_host<U: IntoUrl>(&self, url: U) -> bool {
-        let url = match url.into_url() {
-            Ok(u) => u,
-            Err(_) => return false,
-        };
+    pub fn is_same_host(&self, url: &Url) -> bool {
         self.url.host_str() == url.host_str()
     }
 
@@ -127,6 +119,7 @@ impl Site {
 
 #[cfg(test)]
 mod unit_tests {
+    use hyper::client::IntoUrl;
     use super::Site;
 
     const EXAMPLE: &'static str = "http://example.com/";
@@ -137,36 +130,37 @@ mod unit_tests {
 
     #[test]
     fn new_site() {
-        let site = Site::new(EXAMPLE).unwrap();
+        let site = Site::new(EXAMPLE.into_url().unwrap()).unwrap();
         assert_eq!(site.get_url().as_str(), EXAMPLE);
         assert_eq!(site.get_subs_url().len(), 0);
     }
 
     #[test]
     fn new_site_from_path() {
-        let site = Site::new("http://example.com/index.html").unwrap();
+        let site = Site::new("http://example.com/index.html".into_url().unwrap()).unwrap();
         assert_eq!(site.get_url().as_str(), EXAMPLE);
     }
 
     #[test]
     fn new_site_with_path() {
-        let site = Site::new("http://example.com/index.html").unwrap();
+        let site = Site::new("http://example.com/index.html".into_url().unwrap()).unwrap();
         assert_eq!(site.get_url().as_str(), EXAMPLE);
         assert_eq!(site.get_subs_url_str()[0], "http://example.com/index.html");
     }
 
     #[test]
     fn add_one_sub_url() {
-        let mut site = Site::new(EXAMPLE).unwrap();
-        site.add_sub_url(&format!("{}sub", EXAMPLE));
+        let mut site = Site::new(EXAMPLE.into_url().unwrap()).unwrap();
+        site.add_sub_url(format!("{}sub", EXAMPLE).into_url().unwrap());
         assert_eq!(site.get_subs_url_str()[0], format!("{}sub", EXAMPLE));
     }
 
     #[test]
     fn add_multiple_sub_url() {
-        let mut site = Site::new(EXAMPLE).unwrap();
+        let mut site = Site::new(EXAMPLE.into_url().unwrap()).unwrap();
+        let subs_url = vec_multiple_sub_url().iter().map(|u| u.into_url().unwrap()).collect();
+        site.add_subs_url(subs_url);
         let subs_url = vec_multiple_sub_url();
-        site.add_subs_url(subs_url.clone());
         for (i, sub_url) in site.get_subs_url().iter().enumerate() {
             assert_eq!(sub_url.as_str(), subs_url[i]);
         }
@@ -174,26 +168,26 @@ mod unit_tests {
 
     #[test]
     fn add_wrong_sub_url() {
-        let mut site = Site::new(EXAMPLE).unwrap();
-        site.add_sub_url("http://google.com/sub_url");
+        let mut site = Site::new(EXAMPLE.into_url().unwrap()).unwrap();
+        site.add_sub_url("http://google.com/sub_url".into_url().unwrap());
         assert!(site.get_subs_url().len() == 0);
     }
 
     #[test]
     fn contains_url() {
-        let mut site = Site::new(EXAMPLE).unwrap();
-        site.add_sub_url("http://example.com/sub_url");
-        assert!(site.contains_url(EXAMPLE));
-        assert!(site.contains_url("http://example.com/sub_url"));
-        assert!(site.contains_url("https://example.com/"));
-        assert!(!site.contains_url("http://dev.example.com/"));
-        assert!(!site.contains_url("http://example.com/sub_url/sub"));
+        let mut site = Site::new(EXAMPLE.into_url().unwrap()).unwrap();
+        site.add_sub_url("http://example.com/sub_url".into_url().unwrap());
+        assert!(site.contains_url(&EXAMPLE.into_url().unwrap()));
+        assert!(site.contains_url(&"http://example.com/sub_url".into_url().unwrap()));
+        assert!(site.contains_url(&"https://example.com/".into_url().unwrap()));
+        assert!(!site.contains_url(&"http://dev.example.com/".into_url().unwrap()));
+        assert!(!site.contains_url(&"http://example.com/sub_url/sub".into_url().unwrap()));
     }
 
     #[test]
     fn same_host() {
-        let site = Site::new(EXAMPLE).unwrap();
-        assert!(site.is_same_host("http://example.com/sub_url"));
-        assert!(!site.is_same_host("http://google.com"));
+        let site = Site::new(EXAMPLE.into_url().unwrap()).unwrap();
+        assert!(site.is_same_host(&"http://example.com/sub_url".into_url().unwrap()));
+        assert!(!site.is_same_host(&"http://google.com".into_url().unwrap()));
     }
 }

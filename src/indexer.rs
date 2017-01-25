@@ -20,10 +20,10 @@ impl Indexer {
     pub fn add_url<U: IntoUrl>(&mut self, url: U) -> Result<()> {
         let url = url.into_url()?;
         for site in &mut self.sites {
-            if site.contains_url(url.clone()) {
+            if site.contains_url(&url) {
                 bail!(ErrorKind::UrlAlreadyIndexed);
             }
-            if site.is_same_host(url.clone()) {
+            if site.is_same_host(&url) {
                 if url.as_str().len() > 200 {
                     site.set_trap_state(true);
                     bail!(ErrorKind::SpiderTrap);
@@ -70,7 +70,7 @@ impl Indexer {
     pub fn is_indexed<U: IntoUrl>(&self, url: U) -> Result<bool> {
         let url = url.into_url()?;
         for site in &self.sites {
-            if site.contains_url(url.clone()) {
+            if site.contains_url(&url) {
                 return Ok(true);
             }
         }
