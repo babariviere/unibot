@@ -22,7 +22,7 @@ fn main() {
             return;
         }
     };
-    for (url, _body) in v {
+    for url in v {
         println!("- {}", url);
     }
 }

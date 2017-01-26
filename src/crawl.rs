@@ -8,7 +8,7 @@ use indexer::Indexer;
 use select::document::Document;
 use select::predicate::Attr;
 use std::io::Read;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 // Add settings to go deeper or else
 #[derive(Debug, Default)]
@@ -31,33 +31,34 @@ impl Crawler {
         }
     }
 
+    /// Return a mutable reference to queue
+    fn lock_queue<'a>(&'a self) -> Result<MutexGuard<'a, Vec<Url>>> {
+        match self.queue.lock() {
+            Ok(q) => Ok(q),
+            Err(e) => bail!(ErrorKind::PoisonError(e.to_string())),
+        }
+    }
+
     /// Add an url to the queue
     pub fn add_to_queue<U: IntoUrl>(&mut self, url: U) -> Result<()> {
         let url = url.into_url()?;
-        let mut queue = match self.queue.lock() {
-            Ok(q) => q,
-            Err(e) => bail!(ErrorKind::PoisonError(e.to_string())),
-        };
-        debug!("QUEUE PUSH {}", url);
-        queue.push(url);
+        let mut queue = self.lock_queue()?;
+        if !queue.contains(&url) {
+            debug!("QUEUE PUSH {}", url);
+            queue.push(url);
+        }
         Ok(())
     }
 
     /// Get all item from queue
     pub fn queue_items(&self) -> Result<Vec<Url>> {
-        let queue = match self.queue.lock() {
-            Ok(q) => q,
-            Err(e) => bail!(ErrorKind::PoisonError(e.to_string())),
-        };
+        let queue = self.lock_queue()?;
         Ok(queue.clone())
     }
 
     /// Pop an url from queue
     pub fn pop_queue(&mut self) -> Result<Url> {
-        let mut queue = match self.queue.lock() {
-            Ok(q) => q,
-            Err(e) => bail!(ErrorKind::PoisonError(e.to_string())),
-        };
+        let mut queue = self.lock_queue()?;
         let url = queue.pop();
         match url {
             Some(u) => {
@@ -66,6 +67,13 @@ impl Crawler {
             }
             None => bail!(ErrorKind::QueueEmpty),
         }
+    }
+
+    /// Free queue
+    pub fn free_queue(&mut self) -> Result<()> {
+        let mut queue = self.lock_queue()?;
+        queue.clear();
+        Ok(())
     }
 
     /// Crawl site from queue, index it and return url and the body.
@@ -90,7 +98,7 @@ impl Crawler {
     }
 
     /// Crawl site recursively until queue is empty
-    pub fn crawl_recursive(&mut self) -> Result<Vec<(Url, Document)>> {
+    pub fn crawl_recursive(&mut self) -> Result<Vec<Url>> {
         let mut crawled = Vec::new();
         // Only for debug
         if self.count > 50 {
@@ -107,8 +115,7 @@ impl Crawler {
                 }
             }
         };
-        // TODO just return url not doc, too heavy on memory
-        crawled.push((url.clone(), doc.clone()));
+        crawled.push(url.clone());
         self.count += 1;
         info!("[{}] Crawling {}", self.count, url);
         let srcs = doc.find(Attr("src", ()));
@@ -121,7 +128,6 @@ impl Crawler {
             }
         }
         let hrefs = doc.find(Attr("href", ()));
-        // TODO better handling of href
         for node in hrefs.iter() {
             let href = node.attr("href").unwrap();
             if href.starts_with('#') {
