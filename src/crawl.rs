@@ -8,8 +8,10 @@ use indexer::Indexer;
 use select::document::Document;
 use select::predicate::Attr;
 use std::collections::VecDeque;
+use std::time::Duration;
 use std::io::Read;
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::thread;
 
 // Add settings to go deeper or else
 #[derive(Debug, Default)]
@@ -30,6 +32,12 @@ impl Crawler {
             queue: Arc::new(Mutex::new(VecDeque::new())),
             count: 0,
         }
+    }
+
+    pub fn new_with_queue(queue: Arc<Mutex<VecDeque<Url>>>) -> Crawler {
+        let mut crawler = Crawler::new();
+        crawler.queue = queue;
+        crawler
     }
 
     /// Return a mutable reference to queue
@@ -106,16 +114,17 @@ impl Crawler {
     /// Crawl sites recursively until queue is empty
     pub fn crawl_recursive(&mut self) -> Result<Vec<Url>> {
         let mut crawled = Vec::new();
-        // Only for debug
-        if self.count > 50 {
-            return Ok(crawled);
-        }
         let (url, doc) = match self.crawl_doc() {
             Ok(u) => u,
             Err(e) => {
                 error!("{}", e);
                 match e {
-                    Error(ErrorKind::UrlAlreadyIndexed, _) |
+                    Error(ErrorKind::QueueEmpty, _) => {
+                        thread::sleep(Duration::from_secs(1));
+                        let result = self.crawl_recursive()?;
+                        return Ok(result);
+                    }
+                    Error(ErrorKind::UrlAlreadyIndexed, _) => return Ok(crawled),
                     _ => return Err(e),
                 }
             }
@@ -206,6 +215,21 @@ impl Crawler {
         crawled.extend(result);
         Ok(crawled)
     }
+}
+
+pub fn create_multiple_crawler(queue: Vec<&str>, crawler_size: usize) -> Vec<Crawler> {
+    let mut crawlers = Vec::new();
+    let mut crawler = Crawler::new();
+    for url in queue {
+        let _ = crawler.add_to_queue(url);
+    }
+    for _ in 1..crawler_size {
+        let queue = crawler.queue();
+        let crawler = Crawler::new_with_queue(queue);
+        crawlers.push(crawler);
+    }
+    crawlers.push(crawler);
+    crawlers
 }
 
 #[cfg(test)]

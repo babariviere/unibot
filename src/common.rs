@@ -37,7 +37,9 @@ pub fn href_to_url(url: &Url, href: &str) -> Option<Url> {
     } else {
         let path = url.path();
         if path.ends_with(href) {
-            error!("SPIDER TRAP {}", href);
+            if !href.is_empty() {
+                error!("SPIDER TRAP {}", href);
+            }
             return None;
         }
         let mut url = url.clone();

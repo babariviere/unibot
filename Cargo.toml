@@ -7,6 +7,7 @@ authors = ["notkild <notkild@gmail.com>"]
 name = "libunibot"
 
 [dependencies]
+clap = "2.18"
 error-chain = "0.8"
 hyper = "0.10"
 hyper-native-tls = "0.2"
