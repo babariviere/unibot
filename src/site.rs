@@ -18,7 +18,6 @@ pub struct Site {
     trap: bool,
     fully_crawled: bool,
 }
-// Use hash map for speed
 
 impl Site {
     /// Create a new instance of site
@@ -45,7 +44,7 @@ impl Site {
             Ok(u) => u,
             Err(_) => return,
         };
-        if self.url.host_str() == sub_url.host_str() {
+        if self.url.domain() == sub_url.domain() {
             self.subs_url.push(sub_url);
         }
     }
@@ -59,7 +58,7 @@ impl Site {
 
     /// Check if site contains url and is crawled
     pub fn contains_url(&self, url: &Url) -> bool {
-        if url.host_str() != self.url.host_str() {
+        if url.domain() != self.url.domain() {
             return false;
         }
         let url_path = url.path();

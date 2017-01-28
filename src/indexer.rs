@@ -28,10 +28,6 @@ impl Indexer {
                     bail!(ErrorKind::SpiderTrap);
                 }
                 // TODO
-                if url.as_str().len() > 200 {
-                    site.set_trap_state(true);
-                    bail!(ErrorKind::SpiderTrap);
-                }
                 debug!("ADDING TO INDEX {}", url);
                 site.add_sub_url(url);
                 return Ok(());
@@ -73,13 +69,13 @@ impl Indexer {
     }
 
     /// Check if url is indexed
-    pub fn is_indexed(&self, url: &Url) -> Result<bool> {
+    pub fn is_indexed(&self, url: &Url) -> bool {
         for site in &self.sites {
             if site.contains_url(url) {
-                return Ok(true);
+                return true;
             }
         }
-        Ok(false)
+        false
     }
 }
 

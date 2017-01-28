@@ -15,13 +15,14 @@ fn main() {
     for arg in args {
         crawler.add_to_queue(&arg).unwrap();
     }
-    let v = match crawler.crawl_recursive() {
+    let v = match crawler.crawl_site() {
         Ok(v) => v,
         Err(e) => {
             println!("Error: {}", e);
             return;
         }
     };
+    println!("VISITED:");
     for url in v {
         println!("- {}", url);
     }

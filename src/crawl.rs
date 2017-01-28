@@ -1,4 +1,4 @@
-use common::beautify_url;
+use common::href_to_url;
 use error::*;
 use hyper::client::{Client, IntoUrl};
 use hyper::net::HttpsConnector;
@@ -7,6 +7,7 @@ use hyper_native_tls::NativeTlsClient;
 use indexer::Indexer;
 use select::document::Document;
 use select::predicate::Attr;
+use std::collections::VecDeque;
 use std::io::Read;
 use std::sync::{Arc, Mutex, MutexGuard};
 
@@ -15,7 +16,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 pub struct Crawler {
     client: Client,
     indexer: Indexer,
-    queue: Arc<Mutex<Vec<Url>>>,
+    queue: Arc<Mutex<VecDeque<Url>>>,
     count: usize,
 }
 
@@ -26,32 +27,37 @@ impl Crawler {
         Crawler {
             client: Client::with_connector(connector),
             indexer: Indexer::new(),
-            queue: Arc::new(Mutex::new(Vec::new())),
+            queue: Arc::new(Mutex::new(VecDeque::new())),
             count: 0,
         }
     }
 
     /// Return a mutable reference to queue
-    fn lock_queue<'a>(&'a self) -> Result<MutexGuard<'a, Vec<Url>>> {
+    fn lock_queue(&self) -> Result<MutexGuard<VecDeque<Url>>> {
         match self.queue.lock() {
             Ok(q) => Ok(q),
             Err(e) => bail!(ErrorKind::PoisonError(e.to_string())),
         }
     }
 
+    /// Return a copy of queue
+    pub fn queue(&self) -> Arc<Mutex<VecDeque<Url>>> {
+        self.queue.clone()
+    }
+
     /// Add an url to the queue
     pub fn add_to_queue<U: IntoUrl>(&mut self, url: U) -> Result<()> {
         let url = url.into_url()?;
         let mut queue = self.lock_queue()?;
-        if !queue.contains(&url) {
+        if !queue.contains(&url) && !self.indexer.is_indexed(&url) {
             debug!("QUEUE PUSH {}", url);
-            queue.push(url);
+            queue.push_back(url);
         }
         Ok(())
     }
 
     /// Get all item from queue
-    pub fn queue_items(&self) -> Result<Vec<Url>> {
+    pub fn queue_items(&self) -> Result<VecDeque<Url>> {
         let queue = self.lock_queue()?;
         Ok(queue.clone())
     }
@@ -59,7 +65,7 @@ impl Crawler {
     /// Pop an url from queue
     pub fn pop_queue(&mut self) -> Result<Url> {
         let mut queue = self.lock_queue()?;
-        let url = queue.pop();
+        let url = queue.pop_front();
         match url {
             Some(u) => {
                 debug!("QUEUE POP {}", u);
@@ -97,7 +103,7 @@ impl Crawler {
         Ok((url, doc))
     }
 
-    /// Crawl site recursively until queue is empty
+    /// Crawl sites recursively until queue is empty
     pub fn crawl_recursive(&mut self) -> Result<Vec<Url>> {
         let mut crawled = Vec::new();
         // Only for debug
@@ -133,32 +139,73 @@ impl Crawler {
             if href.starts_with('#') {
                 continue;
             }
-            let url = url.clone();
-            let url = if href.starts_with("//") {
-                let scheme = url.scheme();
-                match format!("{}:{}", scheme, href).into_url() {
-                    Ok(u) => u,
-                    _ => continue,
-                }
-            } else if href.starts_with("http") {
-                match href.into_url() {
-                    Ok(u) => u,
-                    _ => continue,
-                }
-            } else if href.starts_with('/') {
-                let mut url = url.clone();
-                url.set_path(href);
-                url
-            } else {
-                let mut url = url.clone();
-                let href = beautify_url(format!("{}/{}", url, href));
-                url.set_path(&href);
-                url
+            let url = match href_to_url(&url, href) {
+                Some(u) => u,
+                None => continue,
             };
-            self.add_to_queue(url)?;
-            let result = self.crawl_recursive()?;
-            crawled.extend(result);
+            match self.add_to_queue(url) {
+                Ok(_) => {}
+                Err(e) => {
+                    error!("{}", e);
+                    continue;
+                }
+            };
         }
+        let result = self.crawl_recursive()?;
+        crawled.extend(result);
+        Ok(crawled)
+    }
+
+    /// Crawl a site entirely, take the first site from queue
+    pub fn crawl_site(&mut self) -> Result<Vec<Url>> {
+        let mut crawled = Vec::new();
+        let (url, doc) = match self.crawl_doc() {
+            Ok(u) => u,
+            Err(e) => {
+                error!("{}", e);
+                match e {
+                    Error(ErrorKind::UrlAlreadyIndexed, _) |
+                    Error(ErrorKind::SpiderTrap, _) => return Ok(crawled),
+                    _ => return Err(e),
+                }
+            }
+        };
+        crawled.push(url.clone());
+        self.count += 1;
+        info!("[{}] Crawling {}", self.count, url);
+        let srcs = doc.find(Attr("src", ()));
+        for node in srcs.iter() {
+            let src = node.attr("src").unwrap();
+            if src.starts_with("http") {
+                debug!("SRC {}", src);
+            } else {
+                debug!("SRC {}{}", url, src);
+            }
+        }
+        let hrefs = doc.find(Attr("href", ()));
+        let url_old = url.clone();
+        for node in hrefs.iter() {
+            let href = node.attr("href").unwrap();
+            if href.starts_with('#') {
+                continue;
+            }
+            let url = match href_to_url(&url, href) {
+                Some(u) => u,
+                None => continue,
+            };
+            if url.domain() != url_old.domain() {
+                continue;
+            }
+            match self.add_to_queue(url) {
+                Ok(_) => {}
+                Err(e) => {
+                    error!("{}", e);
+                    continue;
+                }
+            };
+        }
+        let result = self.crawl_site()?;
+        crawled.extend(result);
         Ok(crawled)
     }
 }
