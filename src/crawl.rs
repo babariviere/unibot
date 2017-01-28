@@ -116,7 +116,6 @@ impl Crawler {
                 error!("{}", e);
                 match e {
                     Error(ErrorKind::UrlAlreadyIndexed, _) |
-                    Error(ErrorKind::SpiderTrap, _) => return Ok(crawled),
                     _ => return Err(e),
                 }
             }
@@ -165,7 +164,6 @@ impl Crawler {
                 error!("{}", e);
                 match e {
                     Error(ErrorKind::UrlAlreadyIndexed, _) |
-                    Error(ErrorKind::SpiderTrap, _) => return Ok(crawled),
                     _ => return Err(e),
                 }
             }

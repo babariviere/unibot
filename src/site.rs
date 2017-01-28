@@ -15,8 +15,6 @@ use hyper::client::IntoUrl;
 pub struct Site {
     url: Url,
     subs_url: Vec<Url>,
-    trap: bool,
-    fully_crawled: bool,
 }
 
 impl Site {
@@ -33,8 +31,6 @@ impl Site {
         Ok(Site {
             url: url,
             subs_url: subs_url,
-            trap: false,
-            fully_crawled: false,
         })
     }
 
@@ -91,28 +87,6 @@ impl Site {
     /// Return all subs url (str)
     pub fn get_subs_url_str(&self) -> Vec<&str> {
         self.subs_url.iter().map(|u| u.as_str()).collect()
-    }
-
-    /// Check if site contains trap
-    pub fn is_trap(&self) -> bool {
-        self.trap
-    }
-
-    /// Set the trap state of the site
-    ///
-    /// true if site contains trap else false
-    pub fn set_trap_state(&mut self, contain_trap: bool) {
-        self.trap = contain_trap;
-    }
-
-    /// Return if site is fully crawled
-    pub fn is_fully_crawled(&self) -> bool {
-        self.fully_crawled
-    }
-
-    /// Set the site as fully crawled
-    pub fn fully_crawled(&mut self) {
-        self.fully_crawled = true;
     }
 }
 

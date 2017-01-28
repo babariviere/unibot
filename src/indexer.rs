@@ -24,9 +24,6 @@ impl Indexer {
                 bail!(ErrorKind::UrlAlreadyIndexed);
             }
             if site.is_same_host(&url) {
-                if site.is_trap() {
-                    bail!(ErrorKind::SpiderTrap);
-                }
                 // TODO
                 debug!("ADDING TO INDEX {}", url);
                 site.add_sub_url(url);
