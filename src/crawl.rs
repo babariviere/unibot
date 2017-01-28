@@ -5,19 +5,17 @@ use hyper::net::HttpsConnector;
 use hyper::Url;
 use hyper_native_tls::NativeTlsClient;
 use indexer::Indexer;
+use scrap::scrap_attr;
 use select::document::Document;
-use select::predicate::Attr;
 use std::collections::VecDeque;
-use std::time::Duration;
 use std::io::Read;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::thread;
 
 // Add settings to go deeper or else
 #[derive(Debug, Default)]
 pub struct Crawler {
     client: Client,
-    indexer: Indexer,
+    indexer: Arc<Mutex<Indexer>>,
     queue: Arc<Mutex<VecDeque<Url>>>,
     count: usize,
 }
@@ -28,14 +26,15 @@ impl Crawler {
         let connector = HttpsConnector::new(ssl);
         Crawler {
             client: Client::with_connector(connector),
-            indexer: Indexer::new(),
+            indexer: Arc::new(Mutex::new(Indexer::new())),
             queue: Arc::new(Mutex::new(VecDeque::new())),
             count: 0,
         }
     }
 
-    pub fn new_with_queue(queue: Arc<Mutex<VecDeque<Url>>>) -> Crawler {
+    pub fn new_shared(indexer: Arc<Mutex<Indexer>>, queue: Arc<Mutex<VecDeque<Url>>>) -> Crawler {
         let mut crawler = Crawler::new();
+        crawler.indexer = indexer;
         crawler.queue = queue;
         crawler
     }
@@ -48,16 +47,29 @@ impl Crawler {
         }
     }
 
+    /// Return a mutable reference to indexer
+    fn lock_indexer(&self) -> Result<MutexGuard<Indexer>> {
+        match self.indexer.lock() {
+            Ok(i) => Ok(i),
+            Err(e) => bail!(ErrorKind::PoisonError(e.to_string())),
+        }
+    }
+
     /// Return a copy of queue
     pub fn queue(&self) -> Arc<Mutex<VecDeque<Url>>> {
         self.queue.clone()
+    }
+
+    /// Return a copy of indexer
+    pub fn indexer(&self) -> Arc<Mutex<Indexer>> {
+        self.indexer.clone()
     }
 
     /// Add an url to the queue
     pub fn add_to_queue<U: IntoUrl>(&mut self, url: U) -> Result<()> {
         let url = url.into_url()?;
         let mut queue = self.lock_queue()?;
-        if !queue.contains(&url) && !self.indexer.is_indexed(&url) {
+        if !queue.contains(&url) && !self.lock_indexer()?.is_indexed(&url) {
             debug!("QUEUE PUSH {}", url);
             queue.push_back(url);
         }
@@ -68,6 +80,15 @@ impl Crawler {
     pub fn queue_items(&self) -> Result<VecDeque<Url>> {
         let queue = self.lock_queue()?;
         Ok(queue.clone())
+    }
+
+    /// Check if queue is empty
+    pub fn is_queue_empty(&self) -> bool {
+        let queue = match self.lock_queue() {
+            Ok(q) => q,
+            Err(_) => return true,
+        };
+        queue.is_empty()
     }
 
     /// Pop an url from queue
@@ -95,7 +116,7 @@ impl Crawler {
         let url = self.pop_queue()?;
         debug!("CRAWLING SITE {}", url);
         let mut reponse = self.client.get(url.clone()).send()?;
-        self.indexer.add_url(url.clone())?;
+        self.lock_indexer()?.add_url(url.clone())?;
         let mut buf = Vec::new();
         let body = match reponse.read_to_end(&mut buf) {
             Ok(_) => String::from_utf8_lossy(&*buf).into_owned(),
@@ -111,109 +132,47 @@ impl Crawler {
         Ok((url, doc))
     }
 
-    /// Crawl sites recursively until queue is empty
+    /// Crawl site recursively until queue is empty
     pub fn crawl_recursive(&mut self) -> Result<Vec<Url>> {
+        self.crawl_recursive_filter(|_, _| true)
+    }
+
+    /// Crawl site recursively until queue is empty with a filter
+    pub fn crawl_recursive_filter<F>(&mut self, filter: F) -> Result<Vec<Url>>
+        where F: Fn(&Url, &Url) -> bool
+    {
         let mut crawled = Vec::new();
-        let (url, doc) = match self.crawl_doc() {
-            Ok(u) => u,
-            Err(e) => {
-                error!("{}", e);
-                match e {
-                    Error(ErrorKind::QueueEmpty, _) => {
-                        thread::sleep(Duration::from_secs(1));
-                        let result = self.crawl_recursive()?;
-                        return Ok(result);
-                    }
-                    Error(ErrorKind::UrlAlreadyIndexed, _) => return Ok(crawled),
-                    _ => return Err(e),
-                }
-            }
-        };
-        crawled.push(url.clone());
-        self.count += 1;
-        info!("[{}] Crawling {}", self.count, url);
-        let srcs = doc.find(Attr("src", ()));
-        for node in srcs.iter() {
-            let src = node.attr("src").unwrap();
-            if src.starts_with("http") {
-                debug!("SRC {}", src);
-            } else {
-                debug!("SRC {}{}", url, src);
-            }
-        }
-        let hrefs = doc.find(Attr("href", ()));
-        for node in hrefs.iter() {
-            let href = node.attr("href").unwrap();
-            if href.starts_with('#') {
-                continue;
-            }
-            let url = match href_to_url(&url, href) {
-                Some(u) => u,
-                None => continue,
+        while !self.is_queue_empty() {
+            let (v_url, doc) = match self.crawl_doc() {
+                Ok(t) => t,
+                Err(e) => return Err(e),
             };
-            match self.add_to_queue(url) {
-                Ok(_) => {}
-                Err(e) => {
-                    error!("{}", e);
+            crawled.push(v_url.clone());
+            self.count += 1;
+            info!("[{}] Crawling {}", self.count, v_url);
+            let hrefs = scrap_attr(&doc, "href");
+            for href in hrefs {
+                if href.starts_with('#') {
                     continue;
                 }
-            };
+                let url = match href_to_url(&v_url, &href) {
+                    Some(u) => u,
+                    None => continue,
+                };
+                if filter(&v_url, &url) {
+                    if let Err(e) = self.add_to_queue(url) {
+                        error!("{}", e);
+                        continue;
+                    }
+                }
+            }
         }
-        let result = self.crawl_recursive()?;
-        crawled.extend(result);
         Ok(crawled)
     }
 
-    /// Crawl a site entirely, take the first site from queue
+    /// Crawl only a site
     pub fn crawl_site(&mut self) -> Result<Vec<Url>> {
-        let mut crawled = Vec::new();
-        let (url, doc) = match self.crawl_doc() {
-            Ok(u) => u,
-            Err(e) => {
-                error!("{}", e);
-                match e {
-                    Error(ErrorKind::UrlAlreadyIndexed, _) |
-                    _ => return Err(e),
-                }
-            }
-        };
-        crawled.push(url.clone());
-        self.count += 1;
-        info!("[{}] Crawling {}", self.count, url);
-        let srcs = doc.find(Attr("src", ()));
-        for node in srcs.iter() {
-            let src = node.attr("src").unwrap();
-            if src.starts_with("http") {
-                debug!("SRC {}", src);
-            } else {
-                debug!("SRC {}{}", url, src);
-            }
-        }
-        let hrefs = doc.find(Attr("href", ()));
-        let url_old = url.clone();
-        for node in hrefs.iter() {
-            let href = node.attr("href").unwrap();
-            if href.starts_with('#') {
-                continue;
-            }
-            let url = match href_to_url(&url, href) {
-                Some(u) => u,
-                None => continue,
-            };
-            if url.domain() != url_old.domain() {
-                continue;
-            }
-            match self.add_to_queue(url) {
-                Ok(_) => {}
-                Err(e) => {
-                    error!("{}", e);
-                    continue;
-                }
-            };
-        }
-        let result = self.crawl_site()?;
-        crawled.extend(result);
-        Ok(crawled)
+        self.crawl_recursive_filter(|old, url| old.domain() == url.domain())
     }
 }
 
@@ -224,8 +183,9 @@ pub fn create_multiple_crawler(queue: Vec<&str>, crawler_size: usize) -> Vec<Cra
         let _ = crawler.add_to_queue(url);
     }
     for _ in 1..crawler_size {
+        let indexer = crawler.indexer();
         let queue = crawler.queue();
-        let crawler = Crawler::new_with_queue(queue);
+        let crawler = Crawler::new_shared(indexer, queue);
         crawlers.push(crawler);
     }
     crawlers.push(crawler);
