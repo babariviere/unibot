@@ -24,14 +24,11 @@ impl Indexer {
                 bail!(ErrorKind::UrlAlreadyIndexed);
             }
             if site.is_same_host(&url) {
-                // TODO
-                debug!("ADDING TO INDEX {}", url);
                 site.add_sub_url(url);
                 return Ok(());
             }
         }
 
-        debug!("ADDING SITE {}", url);
         self.sites.push(Site::new(url)?);
         Ok(())
     }

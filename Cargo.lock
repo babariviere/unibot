@@ -6,7 +6,6 @@ dependencies = [
  "error-chain 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper-native-tls 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "select 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "term 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]

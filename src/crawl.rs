@@ -70,7 +70,6 @@ impl Crawler {
         let url = url.into_url()?;
         let mut queue = self.lock_queue()?;
         if !queue.contains(&url) && !self.lock_indexer()?.is_indexed(&url) {
-            debug!("QUEUE PUSH {}", url);
             queue.push_back(url);
         }
         Ok(())
@@ -96,10 +95,7 @@ impl Crawler {
         let mut queue = self.lock_queue()?;
         let url = queue.pop_front();
         match url {
-            Some(u) => {
-                debug!("QUEUE POP {}", u);
-                Ok(u)
-            }
+            Some(u) => Ok(u),
             None => bail!(ErrorKind::QueueEmpty),
         }
     }
@@ -114,7 +110,6 @@ impl Crawler {
     /// Crawl site from queue, index it and return url and the body.
     pub fn crawl(&mut self) -> Result<(Url, String)> {
         let url = self.pop_queue()?;
-        debug!("CRAWLING SITE {}", url);
         let mut reponse = self.client.get(url.clone()).send()?;
         self.lock_indexer()?.add_url(url.clone())?;
         let mut buf = Vec::new();
@@ -132,24 +127,17 @@ impl Crawler {
         Ok((url, doc))
     }
 
-    /// Crawl site recursively until queue is empty
-    pub fn crawl_recursive(&mut self) -> Result<Vec<Url>> {
-        self.crawl_recursive_filter(|_, _| true)
-    }
-
     /// Crawl site recursively until queue is empty with a filter
-    pub fn crawl_recursive_filter<F>(&mut self, filter: F) -> Result<Vec<Url>>
-        where F: Fn(&Url, &Url) -> bool
-    {
+    pub fn crawl_recursive(&mut self, config: &CrawlerConfig) -> Result<Vec<Url>> {
         let mut crawled = Vec::new();
         while !self.is_queue_empty() {
             let (v_url, doc) = match self.crawl_doc() {
                 Ok(t) => t,
                 Err(e) => return Err(e),
             };
+            config.crawled(&v_url, &doc);
             crawled.push(v_url.clone());
             self.count += 1;
-            info!("[{}] Crawling {}", self.count, v_url);
             let hrefs = scrap_attr(&doc, "href");
             for href in hrefs {
                 if href.starts_with('#') {
@@ -159,9 +147,8 @@ impl Crawler {
                     Some(u) => u,
                     None => continue,
                 };
-                if filter(&v_url, &url) {
-                    if let Err(e) = self.add_to_queue(url) {
-                        error!("{}", e);
+                if config.filter(&v_url, &url) {
+                    if let Err(_e) = self.add_to_queue(url) {
                         continue;
                     }
                 }
@@ -172,7 +159,8 @@ impl Crawler {
 
     /// Crawl only a site
     pub fn crawl_site(&mut self) -> Result<Vec<Url>> {
-        self.crawl_recursive_filter(|old, url| old.domain() == url.domain())
+        let config = CrawlerConfig::new_site_only();
+        self.crawl_recursive(&config)
     }
 }
 
@@ -190,6 +178,46 @@ pub fn create_multiple_crawler(queue: Vec<&str>, crawler_size: usize) -> Vec<Cra
     }
     crawlers.push(crawler);
     crawlers
+}
+
+pub struct CrawlerConfig {
+    crawled: Box<Fn(&Url, &Document)>,
+    filter: Box<Fn(&Url, &Url) -> bool>,
+}
+
+impl CrawlerConfig {
+    pub fn new() -> CrawlerConfig {
+        CrawlerConfig {
+            crawled: Box::new(|_, _| {}),
+            filter: Box::new(|_, _| true),
+        }
+    }
+
+    pub fn new_site_only() -> CrawlerConfig {
+        CrawlerConfig::new().set_filter(|old, new| old.domain() == new.domain())
+    }
+
+    pub fn crawled(&self, url: &Url, doc: &Document) {
+        (self.crawled)(url, doc)
+    }
+
+    pub fn filter(&self, old_url: &Url, new_url: &Url) -> bool {
+        (self.filter)(old_url, new_url)
+    }
+
+    pub fn set_crawled<F>(mut self, crawled: F) -> CrawlerConfig
+        where F: 'static + Fn(&Url, &Document)
+    {
+        self.crawled = Box::new(crawled);
+        self
+    }
+
+    pub fn set_filter<F>(mut self, filter: F) -> CrawlerConfig
+        where F: 'static + Fn(&Url, &Url) -> bool
+    {
+        self.filter = Box::new(filter);
+        self
+    }
 }
 
 #[cfg(test)]
