@@ -3,7 +3,8 @@ extern crate libunibot;
 extern crate term;
 
 use clap::{App, Arg};
-use libunibot::crawl::{CrawlerConfig, create_multiple_crawler};
+use libunibot::crawl::Crawler;
+use libunibot::crawl::config::CrawlerConfig;
 use std::thread;
 use term::stdout;
 use term::color::*;
@@ -34,37 +35,25 @@ fn main() {
     let site_only = app.is_present("site-only");
     let jobs = app.value_of("jobs").unwrap_or("1").trim().parse::<usize>().unwrap_or(1);
 
-    let mut queue = Vec::new();
+    let mut crawler = Crawler::new();
+    crawler.create_slaves(jobs);
     for site in sites {
-        queue.push(site);
+        crawler.add_to_queue(site);
     }
-
-    let crawlers = create_multiple_crawler(queue, jobs);
-    let mut threads = Vec::new();
-    for mut crawler in crawlers {
-        let site_only = site_only;
-        let thread = thread::spawn(move || {
-            let result = if site_only {
-                crawler.crawl_site()
-            } else {
-                let config = CrawlerConfig::new()
-                    .set_crawled(|url, _doc| println!("Crawling {}", url));
-                crawler.crawl_recursive(&config)
-            };
-            let v = match result {
-                Ok(v) => v,
-                Err(_) => {
-                    return;
+    let receivers = if site_only {
+        crawler.crawl_site().unwrap()
+    } else {
+        crawler.crawl_recursive(&CrawlerConfig::new()).unwrap()
+    };
+    loop {
+        for receiver in &receivers {
+            match receiver.try_recv() {
+                Ok(u) => {
+                    println!("Visited {}", u);
                 }
-            };
-            println!("VISITED:");
-            for url in v {
-                println!("- {}", url);
+                Err(_) => continue,
             }
-        });
-        threads.push(thread);
-    }
-    for thread in threads {
-        thread.join().unwrap();
+        }
+        thread::sleep(::std::time::Duration::from_secs(1));
     }
 }
