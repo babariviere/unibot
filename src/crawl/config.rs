@@ -6,6 +6,7 @@ use std::sync::Arc;
 pub struct CrawlerConfig {
     crawled: Arc<Fn(&Url, &Document) + Send + Sync>,
     filter: Arc<Fn(&Url, &Url) -> bool + Send + Sync>,
+    sleep_ms: u64,
 }
 
 impl CrawlerConfig {
@@ -13,6 +14,7 @@ impl CrawlerConfig {
         CrawlerConfig {
             crawled: Arc::new(|_, _| {}),
             filter: Arc::new(|_, _| true),
+            sleep_ms: 500,
         }
     }
 
@@ -28,6 +30,10 @@ impl CrawlerConfig {
         (self.filter)(old_url, new_url)
     }
 
+    pub fn sleep_ms(&self) -> u64 {
+        self.sleep_ms
+    }
+
     pub fn set_crawled<F>(mut self, crawled: F) -> CrawlerConfig
         where F: 'static + Send + Sync + Fn(&Url, &Document)
     {
@@ -39,6 +45,11 @@ impl CrawlerConfig {
         where F: 'static + Send + Sync + Fn(&Url, &Url) -> bool
     {
         self.filter = Arc::new(filter);
+        self
+    }
+
+    pub fn set_sleep_ms(mut self, sleep_ms: u64) -> CrawlerConfig {
+        self.sleep_ms = sleep_ms;
         self
     }
 }

@@ -70,13 +70,17 @@ impl CrawlerSlave {
     /// Crawl site recursively until queue is empty with a filter
     pub fn crawl_recursive(&mut self, config: CrawlerConfig, tx: Sender<Url>) {
         sync::set_stop(&self.stop, false);
+        let sleep = Duration::from_millis(config.sleep_ms());
         while !sync::is_queue_empty(&self.queue) && !sync::get_stop(&self.stop) {
             let (v_url, doc) = match self.crawl_doc() {
                 Ok(t) => t,
                 Err(_e) => continue,
             };
             config.crawled(&v_url, &doc);
-            tx.send(v_url.clone());
+            match tx.send(v_url.clone()) {
+                Ok(_) => {}
+                Err(_) => continue,
+            }
             let hrefs = scrap_attr(&doc, "href");
             for href in hrefs {
                 if href.starts_with('#') {
@@ -92,7 +96,8 @@ impl CrawlerSlave {
                     }
                 }
             }
-            thread::sleep(Duration::from_millis(1000));
+            thread::sleep(sleep);
         }
+        sync::set_stop(&self.stop, true);
     }
 }

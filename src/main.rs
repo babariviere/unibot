@@ -45,7 +45,7 @@ fn main() {
     } else {
         crawler.crawl_recursive(&CrawlerConfig::new()).unwrap()
     };
-    loop {
+    while !crawler.get_stop() {
         for receiver in &receivers {
             match receiver.try_recv() {
                 Ok(u) => {
