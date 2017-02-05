@@ -114,11 +114,6 @@ impl Crawler {
         self.slaves[0].crawl_doc()
     }
 
-    /// Crawl site only
-    pub fn crawl_site(&mut self) -> Result<Vec<Receiver<Url>>> {
-        self.crawl_recursive(&CrawlerConfig::new_site_only())
-    }
-
     /// Crawl site recursively until queue is empty with a filter
     pub fn crawl_recursive(&mut self, config: &CrawlerConfig) -> Result<Vec<Receiver<Url>>> {
         let mut rxs = Vec::new();

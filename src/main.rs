@@ -39,9 +39,9 @@ fn main() {
         crawler.add_to_queue(site).unwrap();
     }
     let receivers = if site_only {
-        crawler.crawl_site().unwrap()
+        crawler.crawl_recursive(&CrawlerConfig::new_site_only().set_sleep_ms(500)).unwrap()
     } else {
-        crawler.crawl_recursive(&CrawlerConfig::new()).unwrap()
+        crawler.crawl_recursive(&CrawlerConfig::new().set_sleep_ms(500)).unwrap()
     };
     while crawler.get_running() > 0 {
         for receiver in &receivers {
