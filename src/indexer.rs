@@ -109,9 +109,9 @@ mod unit_tests {
     fn is_indexed() {
         let mut indexer = Indexer::new();
         add_set_of_url(&mut indexer);
-        assert!(indexer.is_indexed(&"http://google.com".into_url().unwrap()).unwrap());
-        assert!(indexer.is_indexed(&"http://example.com".into_url().unwrap()).unwrap());
-        assert!(!indexer.is_indexed(&"http://bing.com".into_url().unwrap()).unwrap());
+        assert!(indexer.is_indexed(&"http://google.com".into_url().unwrap()));
+        assert!(indexer.is_indexed(&"http://example.com".into_url().unwrap()));
+        assert!(!indexer.is_indexed(&"http://bing.com".into_url().unwrap()));
     }
 
     #[test]

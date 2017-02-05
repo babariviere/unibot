@@ -53,3 +53,9 @@ impl CrawlerConfig {
         self
     }
 }
+
+impl Default for CrawlerConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}

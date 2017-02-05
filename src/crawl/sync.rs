@@ -1,18 +1,10 @@
-use common::href_to_url;
 use error::*;
-use hyper::client::{Client, IntoUrl};
-use hyper::net::HttpsConnector;
+use hyper::client::IntoUrl;
 use hyper::Url;
-use hyper_native_tls::NativeTlsClient;
 use indexer::Indexer;
-use scrap::scrap_attr;
-use select::document::Document;
 use std::collections::VecDeque;
-use std::io::Read;
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::thread;
-use super::config::CrawlerConfig;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 /// Return a mutex guard of T
 pub fn lock<T>(mutex: &Arc<Mutex<T>>) -> Result<MutexGuard<T>> {
@@ -29,7 +21,7 @@ pub fn add_to_queue<U: IntoUrl>(indexer: &Arc<Mutex<Indexer>>,
                                 -> Result<()> {
     let url = url.into_url()?;
     let mut queue = lock(queue)?;
-    if !queue.contains(&url) && !lock(&indexer)?.is_indexed(&url) {
+    if !queue.contains(&url) && !lock(indexer)?.is_indexed(&url) {
         queue.push_back(url);
     }
     Ok(())
@@ -60,55 +52,30 @@ pub fn pop_queue(queue: &Arc<Mutex<VecDeque<Url>>>) -> Result<Url> {
     }
 }
 
-/// Free queue
-pub fn free_queue(queue: &Arc<Mutex<VecDeque<Url>>>) -> Result<()> {
-    let mut queue = lock(queue)?;
-    queue.clear();
-    Ok(())
-}
-
 /// Get number of slave running
-pub fn get_running(running: &Arc<Mutex<usize>>) -> usize {
-    match lock(running) {
-        Ok(r) => *r,
-        Err(_) => 0,
-    }
+pub fn get_running(running: &Arc<AtomicUsize>) -> usize {
+    running.load(Ordering::SeqCst)
 }
 
 /// Add one to running count
-pub fn add_running(running: &Arc<Mutex<usize>>) {
-    let mut running = match lock(running) {
-        Ok(r) => r,
-        Err(_) => return,
-    };
-    *running += 1;
+pub fn add_running(running: &Arc<AtomicUsize>) {
+    running.fetch_add(1, Ordering::SeqCst);
 }
 
 /// Remove one to running count
-pub fn remove_running(running: &Arc<Mutex<usize>>) {
-    let mut running = match lock(running) {
-        Ok(r) => r,
-        Err(_) => return,
-    };
-    if *running <= 0 {
+pub fn remove_running(running: &Arc<AtomicUsize>) {
+    if get_running(running) == 0 {
         return;
     }
-    *running -= 1;
+    running.fetch_sub(1, Ordering::SeqCst);
 }
 
 /// Get stop value
-pub fn get_stop(stop: &Arc<Mutex<bool>>) -> bool {
-    match lock(stop) {
-        Ok(b) => *b,
-        Err(_) => true,
-    }
+pub fn get_stop(stop: &Arc<AtomicBool>) -> bool {
+    stop.load(Ordering::Relaxed)
 }
 
 /// Set stop value
-pub fn set_stop(stop_async: &Arc<Mutex<bool>>, stop: bool) {
-    let mut lock = match lock(stop_async) {
-        Ok(l) => l,
-        Err(_) => return,
-    };
-    *lock = stop;
+pub fn set_stop(stop_async: &Arc<AtomicBool>, stop: bool) {
+    stop_async.store(stop, Ordering::Relaxed);
 }

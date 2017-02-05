@@ -1,6 +1,6 @@
 use common::href_to_url;
 use error::*;
-use hyper::client::{Client, IntoUrl};
+use hyper::client::Client;
 use hyper::net::HttpsConnector;
 use hyper::Url;
 use hyper_native_tls::NativeTlsClient;
@@ -9,8 +9,9 @@ use scrap::scrap_attr;
 use select::document::Document;
 use std::collections::VecDeque;
 use std::io::Read;
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::mpsc::Sender;
 use std::thread;
 use std::time::Duration;
 use super::config::CrawlerConfig;
@@ -21,8 +22,8 @@ pub struct CrawlerSlave {
     client: Client,
     indexer: Arc<Mutex<Indexer>>,
     queue: Arc<Mutex<VecDeque<Url>>>,
-    running: Arc<Mutex<usize>>,
-    stop: Arc<Mutex<bool>>,
+    running: Arc<AtomicUsize>,
+    stop: Arc<AtomicBool>,
 }
 
 impl CrawlerSlave {
@@ -33,15 +34,15 @@ impl CrawlerSlave {
             client: Client::with_connector(connector),
             indexer: Arc::new(Mutex::new(Indexer::new())),
             queue: Arc::new(Mutex::new(VecDeque::new())),
-            running: Arc::new(Mutex::new(0)),
-            stop: Arc::new(Mutex::new(false)),
+            running: Arc::new(AtomicUsize::new(0)),
+            stop: Arc::new(AtomicBool::new(false)),
         }
     }
 
     pub fn new_shared(indexer: Arc<Mutex<Indexer>>,
                       queue: Arc<Mutex<VecDeque<Url>>>,
-                      running: Arc<Mutex<usize>>,
-                      stop: Arc<Mutex<bool>>)
+                      running: Arc<AtomicUsize>,
+                      stop: Arc<AtomicBool>)
                       -> CrawlerSlave {
         let mut crawler = CrawlerSlave::new();
         crawler.indexer = indexer;

@@ -2,19 +2,15 @@ pub mod config;
 mod slave;
 mod sync;
 
-use common::href_to_url;
 use error::*;
-use hyper::client::{Client, IntoUrl};
-use hyper::net::HttpsConnector;
+use hyper::client::IntoUrl;
 use hyper::Url;
-use hyper_native_tls::NativeTlsClient;
 use indexer::Indexer;
-use scrap::scrap_attr;
 use select::document::Document;
 use std::collections::VecDeque;
-use std::io::Read;
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::mpsc::{self, Receiver};
 use std::thread;
 
 use self::config::CrawlerConfig;
@@ -26,8 +22,8 @@ pub struct Crawler {
     slaves: Vec<CrawlerSlave>,
     indexer: Arc<Mutex<Indexer>>,
     queue: Arc<Mutex<VecDeque<Url>>>,
-    running: Arc<Mutex<usize>>,
-    stop: Arc<Mutex<bool>>,
+    running: Arc<AtomicUsize>,
+    stop: Arc<AtomicBool>,
 }
 
 impl Crawler {
@@ -36,8 +32,8 @@ impl Crawler {
             slaves: Vec::new(),
             indexer: Arc::new(Mutex::new(Indexer::new())),
             queue: Arc::new(Mutex::new(VecDeque::new())),
-            running: Arc::new(Mutex::new(0)),
-            stop: Arc::new(Mutex::new(false)),
+            running: Arc::new(AtomicUsize::new(0)),
+            stop: Arc::new(AtomicBool::new(false)),
         };
         crawler.add_slave();
         crawler
@@ -58,7 +54,7 @@ impl Crawler {
         for _ in 0..number {
             self.add_slave();
         }
-        if self.slaves.len() == 0 {
+        if self.slaves.is_empty() {
             self.add_slave();
         }
     }
@@ -74,12 +70,12 @@ impl Crawler {
     }
 
     /// Return a copy of running
-    pub fn running(&self) -> Arc<Mutex<usize>> {
+    pub fn running(&self) -> Arc<AtomicUsize> {
         self.running.clone()
     }
 
     /// Return a copy of stop
-    pub fn stop(&self) -> Arc<Mutex<bool>> {
+    pub fn stop(&self) -> Arc<AtomicBool> {
         self.stop.clone()
     }
 
@@ -134,5 +130,11 @@ impl Crawler {
             rxs.push(rx);
         }
         Ok(rxs)
+    }
+}
+
+impl Default for Crawler {
+    fn default() -> Self {
+        Self::new()
     }
 }
