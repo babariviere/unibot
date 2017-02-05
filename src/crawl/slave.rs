@@ -21,6 +21,7 @@ pub struct CrawlerSlave {
     client: Client,
     indexer: Arc<Mutex<Indexer>>,
     queue: Arc<Mutex<VecDeque<Url>>>,
+    running: Arc<Mutex<usize>>,
     stop: Arc<Mutex<bool>>,
 }
 
@@ -32,17 +33,20 @@ impl CrawlerSlave {
             client: Client::with_connector(connector),
             indexer: Arc::new(Mutex::new(Indexer::new())),
             queue: Arc::new(Mutex::new(VecDeque::new())),
+            running: Arc::new(Mutex::new(0)),
             stop: Arc::new(Mutex::new(false)),
         }
     }
 
     pub fn new_shared(indexer: Arc<Mutex<Indexer>>,
                       queue: Arc<Mutex<VecDeque<Url>>>,
+                      running: Arc<Mutex<usize>>,
                       stop: Arc<Mutex<bool>>)
                       -> CrawlerSlave {
         let mut crawler = CrawlerSlave::new();
         crawler.indexer = indexer;
         crawler.queue = queue;
+        crawler.running = running;
         crawler.stop = stop;
         crawler
     }
@@ -51,7 +55,7 @@ impl CrawlerSlave {
     pub fn crawl(&mut self) -> Result<(Url, String)> {
         let url = sync::pop_queue(&self.queue)?;
         let mut reponse = self.client.get(url.clone()).send()?;
-        sync::lock_indexer(&self.indexer)?.add_url(url.clone())?;
+        sync::lock(&self.indexer)?.add_url(url.clone())?;
         let mut buf = Vec::new();
         let body = match reponse.read_to_end(&mut buf) {
             Ok(_) => String::from_utf8_lossy(&*buf).into_owned(),
@@ -98,6 +102,6 @@ impl CrawlerSlave {
             }
             thread::sleep(sleep);
         }
-        sync::set_stop(&self.stop, true);
+        sync::remove_running(&self.running);
     }
 }

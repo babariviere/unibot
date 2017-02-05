@@ -26,6 +26,7 @@ pub struct Crawler {
     slaves: Vec<CrawlerSlave>,
     indexer: Arc<Mutex<Indexer>>,
     queue: Arc<Mutex<VecDeque<Url>>>,
+    running: Arc<Mutex<usize>>,
     stop: Arc<Mutex<bool>>,
 }
 
@@ -35,6 +36,7 @@ impl Crawler {
             slaves: Vec::new(),
             indexer: Arc::new(Mutex::new(Indexer::new())),
             queue: Arc::new(Mutex::new(VecDeque::new())),
+            running: Arc::new(Mutex::new(0)),
             stop: Arc::new(Mutex::new(false)),
         };
         crawler.add_slave();
@@ -45,8 +47,9 @@ impl Crawler {
     fn add_slave(&mut self) {
         let indexer = self.indexer();
         let queue = self.queue();
+        let running = self.running();
         let stop = self.stop();
-        self.slaves.push(CrawlerSlave::new_shared(indexer, queue, stop));
+        self.slaves.push(CrawlerSlave::new_shared(indexer, queue, running, stop));
     }
 
     /// Create a set of new slave
@@ -70,6 +73,11 @@ impl Crawler {
         self.queue.clone()
     }
 
+    /// Return a copy of running
+    pub fn running(&self) -> Arc<Mutex<usize>> {
+        self.running.clone()
+    }
+
     /// Return a copy of stop
     pub fn stop(&self) -> Arc<Mutex<bool>> {
         self.stop.clone()
@@ -83,6 +91,11 @@ impl Crawler {
     /// Get all items from queue
     pub fn queue_items(&self) -> Result<VecDeque<Url>> {
         sync::queue_items(&self.queue)
+    }
+
+    /// Get the number of slave that are running
+    pub fn get_running(&self) -> usize {
+        sync::get_running(&self.running)
     }
 
     /// Get stop value
@@ -113,10 +126,8 @@ impl Crawler {
     /// Crawl site recursively until queue is empty with a filter
     pub fn crawl_recursive(&mut self, config: &CrawlerConfig) -> Result<Vec<Receiver<Url>>> {
         let mut rxs = Vec::new();
-        //        println!("NUM SLAVES: {}", self.slaves.len());
-        //        println!("QUEUE EMPTY? {}", sync::is_queue_empty(&self.queue));
-        //        println!("SHOULD STOP? {}", sync::get_stop(&self.stop));
         while let Some(mut slave) = self.slaves.pop() {
+            sync::add_running(&self.running);
             let (tx, rx) = mpsc::channel();
             let config = config.clone();
             thread::spawn(move || slave.crawl_recursive(config, tx));

@@ -6,8 +6,6 @@ use clap::{App, Arg};
 use libunibot::crawl::Crawler;
 use libunibot::crawl::config::CrawlerConfig;
 use std::thread;
-use term::stdout;
-use term::color::*;
 
 fn main() {
     let app = App::new("unibot")
@@ -38,14 +36,14 @@ fn main() {
     let mut crawler = Crawler::new();
     crawler.create_slaves(jobs);
     for site in sites {
-        crawler.add_to_queue(site);
+        crawler.add_to_queue(site).unwrap();
     }
     let receivers = if site_only {
         crawler.crawl_site().unwrap()
     } else {
         crawler.crawl_recursive(&CrawlerConfig::new()).unwrap()
     };
-    while !crawler.get_stop() {
+    while crawler.get_running() > 0 {
         for receiver in &receivers {
             match receiver.try_recv() {
                 Ok(u) => {

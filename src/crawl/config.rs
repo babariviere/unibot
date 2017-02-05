@@ -14,7 +14,7 @@ impl CrawlerConfig {
         CrawlerConfig {
             crawled: Arc::new(|_, _| {}),
             filter: Arc::new(|_, _| true),
-            sleep_ms: 500,
+            sleep_ms: 1000,
         }
     }
 
