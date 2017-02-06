@@ -81,7 +81,6 @@ impl CrawlerSlave {
                 Ok(t) => t,
                 Err(_e) => continue,
             };
-            config.crawled(&v_url, &doc);
             match tx.send(v_url.clone()) {
                 Ok(_) => {}
                 Err(_) => continue,
