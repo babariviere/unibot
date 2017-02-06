@@ -27,11 +27,16 @@ fn main() {
             .long("jobs")
             .takes_value(true)
             .help("Set number of jobs to use"))
+        .arg(Arg::with_name("store")
+            .long("store")
+            .takes_value(true)
+            .help("Store crawled web page to store location"))
         .get_matches();
 
     let sites = app.values_of("sites").unwrap();
     let site_only = app.is_present("site-only");
     let jobs = app.value_of("jobs").unwrap_or("1").trim().parse::<usize>().unwrap_or(1);
+    let store_path = app.value_of("store");
 
     let mut crawler = Crawler::new();
     crawler.create_slaves(jobs);
@@ -39,9 +44,13 @@ fn main() {
         crawler.add_to_queue(site).unwrap();
     }
     let receivers = if site_only {
-        crawler.crawl_recursive(&CrawlerConfig::new_site_only().set_sleep_ms(500)).unwrap()
+        crawler.crawl_recursive(&CrawlerConfig::new_site_only()
+                .set_sleep_ms(500)
+                .set_store_path(store_path))
+            .unwrap()
     } else {
-        crawler.crawl_recursive(&CrawlerConfig::new().set_sleep_ms(500)).unwrap()
+        crawler.crawl_recursive(&CrawlerConfig::new().set_sleep_ms(500).set_store_path(store_path))
+            .unwrap()
     };
     while crawler.get_running() > 0 {
         for receiver in &receivers {

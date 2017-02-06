@@ -65,22 +65,17 @@ impl CrawlerSlave {
         Ok((url, body))
     }
 
-    /// Crawl site, index it and return the url and the parsed body.
-    pub fn crawl_doc(&mut self) -> Result<(Url, Document)> {
-        let (url, body) = self.crawl()?;
-        let doc = Document::from(body.as_str());
-        Ok((url, doc))
-    }
-
     /// Crawl site recursively until queue is empty with a filter
     pub fn crawl_recursive(&mut self, config: CrawlerConfig, tx: Sender<Url>) {
         sync::set_stop(&self.stop, false);
         let sleep = Duration::from_millis(config.sleep_ms());
         while !sync::is_queue_empty(&self.queue) && !sync::get_stop(&self.stop) {
-            let (v_url, doc) = match self.crawl_doc() {
+            let (v_url, body) = match self.crawl() {
                 Ok(t) => t,
                 Err(_e) => continue,
             };
+            config.store(&v_url, &body);
+            let doc = Document::from(body.as_str());
             match tx.send(v_url.clone()) {
                 Ok(_) => {}
                 Err(_) => continue,

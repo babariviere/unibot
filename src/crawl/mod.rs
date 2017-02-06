@@ -6,7 +6,6 @@ use error::*;
 use hyper::client::IntoUrl;
 use hyper::Url;
 use indexer::Indexer;
-use select::document::Document;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicUsize};
@@ -107,11 +106,6 @@ impl Crawler {
     /// Crawl site from queue, index it and return url and the body.
     pub fn crawl(&mut self) -> Result<(Url, String)> {
         self.slaves[0].crawl()
-    }
-
-    /// Crawl site, index it and return the url and the parsed body.
-    pub fn crawl_doc(&mut self) -> Result<(Url, Document)> {
-        self.slaves[0].crawl_doc()
     }
 
     /// Crawl site recursively until queue is empty with a filter
