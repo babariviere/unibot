@@ -104,7 +104,7 @@ impl Crawler {
     }
 
     /// Crawl site from queue, index it and return url and the body.
-    pub fn crawl(&mut self) -> Result<(Url, String)> {
+    pub fn crawl(&mut self) -> Result<(Url, Vec<u8>)> {
         self.slaves[0].crawl()
     }
 

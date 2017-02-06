@@ -32,7 +32,7 @@ impl CrawlerConfig {
         self.sleep_ms
     }
 
-    pub fn store(&self, url: &Url, body: &str) {
+    pub fn store(&self, url: &Url, body: &[u8]) {
         if let Some(ref dir_path) = self.store_path {
             if !dir_path.exists() {
                 match fs::create_dir_all(dir_path) {
@@ -46,7 +46,7 @@ impl CrawlerConfig {
                 Ok(f) => f,
                 Err(_) => return,
             };
-            let _ = file.write_all(body.as_bytes());
+            let _ = file.write_all(body);
         }
     }
 

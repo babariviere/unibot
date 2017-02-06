@@ -53,13 +53,13 @@ impl CrawlerSlave {
     }
 
     /// Crawl site from queue, index it and return url and the body.
-    pub fn crawl(&mut self) -> Result<(Url, String)> {
+    pub fn crawl(&mut self) -> Result<(Url, Vec<u8>)> {
         let url = sync::pop_queue(&self.queue)?;
         let mut reponse = self.client.get(url.clone()).send()?;
         sync::lock(&self.indexer)?.add_url(url.clone())?;
         let mut buf = Vec::new();
         let body = match reponse.read_to_end(&mut buf) {
-            Ok(_) => String::from_utf8_lossy(&*buf).into_owned(),
+            Ok(_) => buf,
             Err(e) => bail!(e),
         };
         Ok((url, body))
@@ -75,6 +75,7 @@ impl CrawlerSlave {
                 Err(_e) => continue,
             };
             config.store(&v_url, &body);
+            let body = String::from_utf8_lossy(body.as_slice()).to_string();
             let doc = Document::from(body.as_str());
             match tx.send(v_url.clone()) {
                 Ok(_) => {}
